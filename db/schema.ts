@@ -383,3 +383,26 @@ export const auditEvent = sqliteTable("audit_event", {
   metadata: text(),
   createdAt: text().notNull(),
 });
+
+export type AuditLogAction = "created" | "updated" | "deleted" | "role_changed" | "status_changed" | "invited";
+export const auditLog = sqliteTable(
+  "audit_log",
+  {
+    id: int().primaryKey({ autoIncrement: true }),
+    adminUserId: int()
+      .notNull()
+      .references(() => user.id),
+    targetUserId: int()
+      .notNull()
+      .references(() => user.id),
+    action: text().notNull().$type<AuditLogAction>(),
+    previousValue: text(),
+    newValue: text(),
+    metadata: text(),
+    createdAt: text().notNull(),
+  },
+  (table) => ({
+    targetUserIdx: index("audit_log_target_user_idx").on(table.targetUserId, table.createdAt),
+    adminUserIdx: index("audit_log_admin_user_idx").on(table.adminUserId, table.createdAt),
+  }),
+);

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactElement } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { FiChevronsRight, FiEye, FiEyeOff, FiPlus } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
@@ -313,8 +314,8 @@ export default function IssuesWorkflowView({
       <section className="card">
         <div className="card-header">
           <div>
-            <h2>Issue workflow board</h2>
-            <p>Progress issues from open to closed with explicit transitions.</p>
+            <h2>Issues</h2>
+            <p>Manage blockers from open through to closed.</p>
           </div>
         </div>
         <div className="table-wrap">
@@ -343,13 +344,15 @@ export default function IssuesWorkflowView({
                 issues.map((item) => (
                   <tr key={item.id}>
                     <td>
-                      <div className="workflow-title">{item.title}</div>
-                      {item.description ? (
-                        <p className="workflow-subtext">{item.description}</p>
-                      ) : null}
+                      <Link href={`/issues/${item.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                        <div className="workflow-title">{item.title}</div>
+                        {item.description ? (
+                          <p className="workflow-subtext">{item.description}</p>
+                        ) : null}
+                      </Link>
                     </td>
                     <td>{item.projectName}</td>
-                    <td>{item.taskTitle ?? "None"}</td>
+                    <td>{item.taskTitle ?? "-"}</td>
                     <td>{item.assigneeName ?? "Unassigned"}</td>
                     <td>
                       <span className="workflow-status-pill">
@@ -358,6 +361,14 @@ export default function IssuesWorkflowView({
                     </td>
                     <td>
                       <div className="button-row">
+                        <Link href={`/issues/${item.id}`}>
+                          <AppButton
+                            variant="secondary"
+                            startIcon={<FiPlus aria-hidden="true" />}
+                          >
+                            View
+                          </AppButton>
+                        </Link>
                         <AppButton
                           variant="secondary"
                           onClick={() => handleToggleFollow(item.id, !item.isFollowing)}

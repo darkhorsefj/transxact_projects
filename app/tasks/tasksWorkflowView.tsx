@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactElement } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { FiChevronsRight, FiEye, FiEyeOff, FiPlus } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
@@ -338,10 +339,12 @@ export default function TasksWorkflowView({
                 tasks.map((item) => (
                   <tr key={item.id}>
                     <td>
-                      <div className="workflow-title">{item.title}</div>
-                      {item.description ? (
-                        <p className="workflow-subtext">{item.description}</p>
-                      ) : null}
+                      <Link href={`/tasks/${item.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                        <div className="workflow-title">{item.title}</div>
+                        {item.description ? (
+                          <p className="workflow-subtext">{item.description}</p>
+                        ) : null}
+                      </Link>
                     </td>
                     <td>{item.projectName}</td>
                     <td>{item.phaseName}</td>
@@ -354,6 +357,14 @@ export default function TasksWorkflowView({
                     </td>
                     <td>
                       <div className="button-row">
+                        <Link href={`/tasks/${item.id}`}>
+                          <AppButton
+                            variant="secondary"
+                            startIcon={<FiPlus aria-hidden="true" />}
+                          >
+                            View
+                          </AppButton>
+                        </Link>
                         <AppButton
                           variant="secondary"
                           onClick={() => handleToggleFollow(item.id, !item.isFollowing)}

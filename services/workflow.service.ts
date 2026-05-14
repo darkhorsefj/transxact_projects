@@ -10,6 +10,7 @@ import {
   task,
   type TaskStatus,
   user,
+  workItemComment,
 } from "@/db/schema";
 import {
   createNotifications,
@@ -22,6 +23,7 @@ import { requireSessionUser } from "./session.service";
 
 const BACKLOG_PHASE_NAME = "Backlog";
 const MIN_TITLE_LENGTH = 3;
+const MAX_COMMENT_LENGTH = 2000;
 
 const NEXT_TASK_STATUS: Record<TaskStatus, TaskStatus> = {
   not_started: "in_progress",
@@ -71,6 +73,7 @@ export interface TaskWorkflowItem {
   phaseName: string;
   assigneeName: string | null;
   isFollowing: boolean;
+  comments: WorkItemCommentThreadItem[];
 }
 
 export interface IssueWorkflowItem {
@@ -82,6 +85,18 @@ export interface IssueWorkflowItem {
   taskTitle: string | null;
   assigneeName: string | null;
   isFollowing: boolean;
+  comments: WorkItemCommentThreadItem[];
+}
+
+export interface WorkItemCommentThreadItem {
+  id: number;
+  body: string;
+  createdAt: string;
+  updatedAt: string | null;
+  isEdited: boolean;
+  createdByUserId: number;
+  authorLabel: string;
+  isOwn: boolean;
 }
 
 export interface TaskWorkflowData {
@@ -131,6 +146,28 @@ function normalizeDescription(rawDescription: string | undefined): string | null
 
   const normalized = rawDescription.trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeCommentBody(rawCommentBody: string): string {
+  const normalized = rawCommentBody.trim();
+  if (!normalized) {
+    throw new Error("Comment cannot be empty.");
+  }
+
+  if (normalized.length > MAX_COMMENT_LENGTH) {
+    throw new Error(`Comment cannot exceed ${MAX_COMMENT_LENGTH} characters.`);
+  }
+
+  return normalized;
+}
+
+function buildCommentPreview(commentBody: string): string {
+  const maxPreviewLength = 140;
+  if (commentBody.length <= maxPreviewLength) {
+    return commentBody;
+  }
+
+  return `${commentBody.slice(0, maxPreviewLength - 1)}…`;
 }
 
 function parseDueDate(dueOn: string): string {
@@ -275,6 +312,118 @@ async function listAssigneeOptions(): Promise<AssigneeOption[]> {
   }));
 }
 
+async function listTaskCommentsByTaskId(
+  taskIds: number[],
+  currentUserId: number,
+): Promise<Map<number, WorkItemCommentThreadItem[]>> {
+  const uniqueTaskIds = [...new Set(taskIds)].filter((taskId) => taskId > 0);
+  if (uniqueTaskIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await db
+    .select({
+      id: workItemComment.id,
+      taskId: workItemComment.taskId,
+      body: workItemComment.body,
+      createdAt: workItemComment.createdAt,
+      updatedAt: workItemComment.updatedAt,
+      createdByUserId: workItemComment.createdByUserId,
+      authorName: user.name,
+      authorEmail: user.email,
+    })
+    .from(workItemComment)
+    .innerJoin(user, eq(workItemComment.createdByUserId, user.id))
+    .where(
+      and(
+        isNull(workItemComment.deletedAt),
+        isNull(workItemComment.issueId),
+        inArray(workItemComment.taskId, uniqueTaskIds),
+      ),
+    )
+    .orderBy(asc(workItemComment.createdAt), asc(workItemComment.id));
+
+  const commentsByTaskId = new Map<number, WorkItemCommentThreadItem[]>();
+  for (const row of rows) {
+    if (!row.taskId) {
+      continue;
+    }
+
+    const item: WorkItemCommentThreadItem = {
+      id: row.id,
+      body: row.body,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      isEdited: row.updatedAt !== null,
+      createdByUserId: row.createdByUserId,
+      authorLabel: displayName(row.authorName, row.authorEmail),
+      isOwn: row.createdByUserId === currentUserId,
+    };
+
+    const existing = commentsByTaskId.get(row.taskId) ?? [];
+    existing.push(item);
+    commentsByTaskId.set(row.taskId, existing);
+  }
+
+  return commentsByTaskId;
+}
+
+async function listIssueCommentsByIssueId(
+  issueIds: number[],
+  currentUserId: number,
+): Promise<Map<number, WorkItemCommentThreadItem[]>> {
+  const uniqueIssueIds = [...new Set(issueIds)].filter((issueId) => issueId > 0);
+  if (uniqueIssueIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await db
+    .select({
+      id: workItemComment.id,
+      issueId: workItemComment.issueId,
+      body: workItemComment.body,
+      createdAt: workItemComment.createdAt,
+      updatedAt: workItemComment.updatedAt,
+      createdByUserId: workItemComment.createdByUserId,
+      authorName: user.name,
+      authorEmail: user.email,
+    })
+    .from(workItemComment)
+    .innerJoin(user, eq(workItemComment.createdByUserId, user.id))
+    .where(
+      and(
+        isNull(workItemComment.deletedAt),
+        isNull(workItemComment.taskId),
+        inArray(workItemComment.issueId, uniqueIssueIds),
+      ),
+    )
+    .orderBy(asc(workItemComment.createdAt), asc(workItemComment.id));
+
+  const commentsByIssueId = new Map<number, WorkItemCommentThreadItem[]>();
+  for (const row of rows) {
+    if (!row.issueId) {
+      continue;
+    }
+
+    const item: WorkItemCommentThreadItem = {
+      id: row.id,
+      body: row.body,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      isEdited: row.updatedAt !== null,
+      createdByUserId: row.createdByUserId,
+      authorLabel: displayName(row.authorName, row.authorEmail),
+      isOwn: row.createdByUserId === currentUserId,
+    };
+
+    const existing = commentsByIssueId.get(row.issueId) ?? [];
+    existing.push(item);
+    commentsByIssueId.set(row.issueId, existing);
+  }
+
+  return commentsByIssueId;
+}
+
 export async function listProjectWorkflowData(): Promise<{
   projects: ProjectWorkflowItem[];
 }> {
@@ -344,6 +493,7 @@ export async function listProjectWorkflowData(): Promise<{
 
 export async function listTaskWorkflowData(): Promise<TaskWorkflowData> {
   const currentUser = await requireSessionUser();
+  await ensureDbSchema();
 
   const [projects, assignees, tasks] = await Promise.all([
     listProjectOptions(),
@@ -372,6 +522,10 @@ export async function listTaskWorkflowData(): Promise<TaskWorkflowData> {
       )
       .orderBy(desc(task.createdAt)),
   ]);
+  const commentsByTaskId = await listTaskCommentsByTaskId(
+    tasks.map((item) => item.id),
+    currentUser.id,
+  );
 
   const followMap = await listUserEntitySubscriptionState(
     "task",
@@ -385,6 +539,7 @@ export async function listTaskWorkflowData(): Promise<TaskWorkflowData> {
     tasks: tasks.map((item) => ({
       ...item,
       isFollowing: followMap.get(item.id) ?? false,
+      comments: commentsByTaskId.get(item.id) ?? [],
     })),
   };
 }
@@ -423,6 +578,10 @@ export async function listIssueWorkflowData(): Promise<IssueWorkflowData> {
       .where(and(isNull(issue.deletedAt), isNull(project.deletedAt)))
       .orderBy(desc(issue.createdAt)),
   ]);
+  const commentsByIssueId = await listIssueCommentsByIssueId(
+    issues.map((item) => item.id),
+    currentUser.id,
+  );
 
   const followMap = await listUserEntitySubscriptionState(
     "issue",
@@ -437,6 +596,7 @@ export async function listIssueWorkflowData(): Promise<IssueWorkflowData> {
     issues: issues.map((item) => ({
       ...item,
       isFollowing: followMap.get(item.id) ?? false,
+      comments: commentsByIssueId.get(item.id) ?? [],
     })),
   };
 }
@@ -626,6 +786,71 @@ export async function advanceTaskStatus(taskId: number): Promise<TaskStatus> {
   return nextStatus;
 }
 
+export async function addTaskComment(taskId: number, rawCommentBody: string): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  if (!Number.isInteger(taskId) || taskId <= 0) {
+    throw new Error("Task not found.");
+  }
+
+  const body = normalizeCommentBody(rawCommentBody);
+  const rows = await db
+    .select({
+      title: task.title,
+      assigneeUserId: task.assigneeUserId,
+      createdByUserId: task.createdByUserId,
+    })
+    .from(task)
+    .where(and(eq(task.id, taskId), isNull(task.deletedAt)))
+    .limit(1);
+  if (rows.length === 0) {
+    throw new Error("Task not found.");
+  }
+
+  const nowIso = new Date().toISOString();
+  const insertedRows = await db
+    .insert(workItemComment)
+    .values({
+      taskId,
+      issueId: null,
+      createdByUserId: currentUser.id,
+      body,
+      createdAt: nowIso,
+      updatedAt: null,
+      deletedAt: null,
+    })
+    .returning({ id: workItemComment.id });
+  if (insertedRows.length === 0) {
+    throw new Error("Unable to add comment.");
+  }
+
+  await ensureEntitySubscriptions("task", taskId, [
+    currentUser.id,
+    rows[0].createdByUserId,
+    rows[0].assigneeUserId,
+  ]);
+  const recipients = await resolveEntityNotificationRecipients({
+    entityType: "task",
+    entityId: taskId,
+    creatorUserId: rows[0].createdByUserId,
+    assigneeUserId: rows[0].assigneeUserId,
+    actorUserId: currentUser.id,
+  });
+  await createNotifications({
+    recipientUserIds: recipients,
+    actorUserId: currentUser.id,
+    category: "task_activity",
+    type: "task_comment_added",
+    title: `New task comment: ${rows[0].title}`,
+    body: buildCommentPreview(body),
+    href: `/tasks?taskId=${taskId}`,
+    sourceType: "task",
+    sourceId: taskId,
+    emailDelayMinutes: 0,
+  });
+}
+
 export async function createIssue(input: CreateIssueInput): Promise<void> {
   const currentUser = await requireSessionUser();
   const title = normalizeTitle(input.title, "Issue title");
@@ -761,6 +986,214 @@ export async function advanceIssueStatus(issueId: number): Promise<IssueStatus> 
   return nextStatus;
 }
 
+export async function addIssueComment(
+  issueId: number,
+  rawCommentBody: string,
+): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  if (!Number.isInteger(issueId) || issueId <= 0) {
+    throw new Error("Issue not found.");
+  }
+
+  const body = normalizeCommentBody(rawCommentBody);
+  const rows = await db
+    .select({
+      title: issue.title,
+      assigneeUserId: issue.assigneeUserId,
+      createdByUserId: issue.createdByUserId,
+    })
+    .from(issue)
+    .where(and(eq(issue.id, issueId), isNull(issue.deletedAt)))
+    .limit(1);
+  if (rows.length === 0) {
+    throw new Error("Issue not found.");
+  }
+
+  const nowIso = new Date().toISOString();
+  const insertedRows = await db
+    .insert(workItemComment)
+    .values({
+      taskId: null,
+      issueId,
+      createdByUserId: currentUser.id,
+      body,
+      createdAt: nowIso,
+      updatedAt: null,
+      deletedAt: null,
+    })
+    .returning({ id: workItemComment.id });
+  if (insertedRows.length === 0) {
+    throw new Error("Unable to add comment.");
+  }
+
+  await ensureEntitySubscriptions("issue", issueId, [
+    currentUser.id,
+    rows[0].createdByUserId,
+    rows[0].assigneeUserId,
+  ]);
+  const recipients = await resolveEntityNotificationRecipients({
+    entityType: "issue",
+    entityId: issueId,
+    creatorUserId: rows[0].createdByUserId,
+    assigneeUserId: rows[0].assigneeUserId,
+    actorUserId: currentUser.id,
+  });
+  await createNotifications({
+    recipientUserIds: recipients,
+    actorUserId: currentUser.id,
+    category: "issue_activity",
+    type: "issue_comment_added",
+    title: `New issue comment: ${rows[0].title}`,
+    body: buildCommentPreview(body),
+    href: `/issues?issueId=${issueId}`,
+    sourceType: "issue",
+    sourceId: issueId,
+    emailDelayMinutes: 0,
+  });
+}
+
+export async function editTaskComment(
+  commentId: number,
+  rawCommentBody: string,
+): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  if (!Number.isInteger(commentId) || commentId <= 0) {
+    throw new Error("Comment not found.");
+  }
+
+  const body = normalizeCommentBody(rawCommentBody);
+  const rows = await db
+    .select({
+      id: workItemComment.id,
+      createdByUserId: workItemComment.createdByUserId,
+      taskId: workItemComment.taskId,
+      issueId: workItemComment.issueId,
+    })
+    .from(workItemComment)
+    .where(and(eq(workItemComment.id, commentId), isNull(workItemComment.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Comment not found.");
+  }
+
+  if (rows[0].createdByUserId !== currentUser.id) {
+    throw new Error("You can only edit your own comments.");
+  }
+
+  const nowIso = new Date().toISOString();
+  await db
+    .update(workItemComment)
+    .set({ body, updatedAt: nowIso })
+    .where(eq(workItemComment.id, commentId));
+}
+
+export async function deleteTaskComment(commentId: number): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  if (!Number.isInteger(commentId) || commentId <= 0) {
+    throw new Error("Comment not found.");
+  }
+
+  const rows = await db
+    .select({
+      id: workItemComment.id,
+      createdByUserId: workItemComment.createdByUserId,
+    })
+    .from(workItemComment)
+    .where(and(eq(workItemComment.id, commentId), isNull(workItemComment.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Comment not found.");
+  }
+
+  if (rows[0].createdByUserId !== currentUser.id) {
+    throw new Error("You can only delete your own comments.");
+  }
+
+  const nowIso = new Date().toISOString();
+  await db
+    .update(workItemComment)
+    .set({ deletedAt: nowIso })
+    .where(eq(workItemComment.id, commentId));
+}
+
+export async function editIssueComment(
+  commentId: number,
+  rawCommentBody: string,
+): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  if (!Number.isInteger(commentId) || commentId <= 0) {
+    throw new Error("Comment not found.");
+  }
+
+  const body = normalizeCommentBody(rawCommentBody);
+  const rows = await db
+    .select({
+      id: workItemComment.id,
+      createdByUserId: workItemComment.createdByUserId,
+      taskId: workItemComment.taskId,
+      issueId: workItemComment.issueId,
+    })
+    .from(workItemComment)
+    .where(and(eq(workItemComment.id, commentId), isNull(workItemComment.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Comment not found.");
+  }
+
+  if (rows[0].createdByUserId !== currentUser.id) {
+    throw new Error("You can only edit your own comments.");
+  }
+
+  const nowIso = new Date().toISOString();
+  await db
+    .update(workItemComment)
+    .set({ body, updatedAt: nowIso })
+    .where(eq(workItemComment.id, commentId));
+}
+
+export async function deleteIssueComment(commentId: number): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  if (!Number.isInteger(commentId) || commentId <= 0) {
+    throw new Error("Comment not found.");
+  }
+
+  const rows = await db
+    .select({
+      id: workItemComment.id,
+      createdByUserId: workItemComment.createdByUserId,
+    })
+    .from(workItemComment)
+    .where(and(eq(workItemComment.id, commentId), isNull(workItemComment.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Comment not found.");
+  }
+
+  if (rows[0].createdByUserId !== currentUser.id) {
+    throw new Error("You can only delete your own comments.");
+  }
+
+  const nowIso = new Date().toISOString();
+  await db
+    .update(workItemComment)
+    .set({ deletedAt: nowIso })
+    .where(eq(workItemComment.id, commentId));
+}
+
 export async function setProjectFollow(
   projectId: number,
   follow: boolean,
@@ -780,4 +1213,175 @@ export async function setIssueFollow(issueId: number, follow: boolean): Promise<
   await requireSessionUser();
   await requireActiveIssue(issueId);
   await toggleEntitySubscription("issue", issueId, follow);
+}
+
+export interface TaskDetailItem {
+  id: number;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  dueAt: string;
+  projectId: number;
+  projectName: string;
+  phaseId: number;
+  phaseName: string;
+  assigneeId: number | null;
+  assigneeName: string | null;
+  createdByUserId: number | null;
+  createdByUserName: string;
+  createdAt: string;
+  isFollowing: boolean;
+  comments: WorkItemCommentThreadItem[];
+}
+
+export async function getTaskDetailById(taskId: number): Promise<TaskDetailItem> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  if (!Number.isInteger(taskId) || taskId <= 0) {
+    throw new Error("Task not found.");
+  }
+
+  const rows = await db
+    .select({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      dueAt: task.dueAt,
+      projectId: project.id,
+      projectName: project.name,
+      phaseId: task.phaseId,
+      phaseName: phase.name,
+      assigneeId: task.assigneeUserId,
+      assigneeName: user.name,
+      createdByUserId: task.createdByUserId,
+      createdAt: task.createdAt,
+    })
+    .from(task)
+    .innerJoin(phase, eq(task.phaseId, phase.id))
+    .innerJoin(project, eq(phase.projectId, project.id))
+    .leftJoin(user, eq(task.assigneeUserId, user.id))
+    .where(and(eq(task.id, taskId), isNull(task.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Task not found.");
+  }
+
+  const row = rows[0];
+
+  // Fetch comments
+  const comments = await listTaskCommentsByTaskId([taskId], currentUser.id);
+  const taskComments = comments.get(taskId) ?? [];
+
+  // Fetch following status
+  const followingState = await listUserEntitySubscriptionState("task", [taskId]);
+  const isFollowing = followingState.get(taskId) ?? false;
+
+  // Use the current user name as fallback for creator
+  const creatorName = row.createdByUserId === currentUser.id ? "You" : "Creator";
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    dueAt: row.dueAt,
+    projectId: row.projectId,
+    projectName: row.projectName,
+    phaseId: row.phaseId,
+    phaseName: row.phaseName,
+    assigneeId: row.assigneeId,
+    assigneeName: row.assigneeName,
+    createdByUserId: row.createdByUserId,
+    createdByUserName: creatorName,
+    createdAt: row.createdAt,
+    isFollowing,
+    comments: taskComments,
+  };
+}
+
+export interface IssueDetailItem {
+  id: number;
+  title: string;
+  description: string | null;
+  status: IssueStatus;
+  projectId: number;
+  projectName: string;
+  taskId: number | null;
+  taskTitle: string | null;
+  assigneeId: number | null;
+  assigneeName: string | null;
+  createdByUserId: number | null;
+  createdByUserName: string;
+  createdAt: string;
+  isFollowing: boolean;
+  comments: WorkItemCommentThreadItem[];
+}
+
+export async function getIssueDetailById(issueId: number): Promise<IssueDetailItem> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  if (!Number.isInteger(issueId) || issueId <= 0) {
+    throw new Error("Issue not found.");
+  }
+
+  const rows = await db
+    .select({
+      id: issue.id,
+      title: issue.title,
+      description: issue.description,
+      status: issue.status,
+      projectId: issue.projectId,
+      projectName: project.name,
+      taskId: issue.taskId,
+      taskTitle: task.title,
+      assigneeId: issue.assigneeUserId,
+      assigneeName: user.name,
+      createdByUserId: issue.createdByUserId,
+      createdAt: issue.createdAt,
+    })
+    .from(issue)
+    .innerJoin(project, eq(issue.projectId, project.id))
+    .leftJoin(task, eq(issue.taskId, task.id))
+    .leftJoin(user, eq(issue.assigneeUserId, user.id))
+    .where(and(eq(issue.id, issueId), isNull(issue.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Issue not found.");
+  }
+
+  const row = rows[0];
+
+  // Fetch comments
+  const comments = await listIssueCommentsByIssueId([issueId], currentUser.id);
+  const issueComments = comments.get(issueId) ?? [];
+
+  // Fetch following status
+  const followingState = await listUserEntitySubscriptionState("issue", [issueId]);
+  const isFollowing = followingState.get(issueId) ?? false;
+
+  // Use the current user name as fallback for creator
+  const creatorName = row.createdByUserId === currentUser.id ? "You" : "Creator";
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    projectId: row.projectId,
+    projectName: row.projectName,
+    taskId: row.taskId,
+    taskTitle: row.taskTitle,
+    assigneeId: row.assigneeId,
+    assigneeName: row.assigneeName,
+    createdByUserId: row.createdByUserId,
+    createdByUserName: creatorName,
+    createdAt: row.createdAt,
+    isFollowing,
+    comments: issueComments,
+  };
 }

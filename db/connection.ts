@@ -167,6 +167,19 @@ const compatibilityTableStatements = [
     FOREIGN KEY ("notificationId") REFERENCES "notification"("id") ON UPDATE no action ON DELETE no action,
     FOREIGN KEY ("userId") REFERENCES "user"("id") ON UPDATE no action ON DELETE no action
   )`,
+  `CREATE TABLE IF NOT EXISTS "work_item_comment" (
+    "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "taskId" integer,
+    "issueId" integer,
+    "createdByUserId" integer NOT NULL,
+    "body" text NOT NULL,
+    "createdAt" text NOT NULL,
+    "updatedAt" text,
+    "deletedAt" text,
+    FOREIGN KEY ("taskId") REFERENCES "task"("id") ON UPDATE no action ON DELETE no action,
+    FOREIGN KEY ("issueId") REFERENCES "issue"("id") ON UPDATE no action ON DELETE no action,
+    FOREIGN KEY ("createdByUserId") REFERENCES "user"("id") ON UPDATE no action ON DELETE no action
+  )`,
 ];
 
 const compatibilityIndexStatements = [

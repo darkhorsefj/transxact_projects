@@ -10,7 +10,7 @@
     "db:push": "drizzle-kit push --config drizzle.config.ts",
     "db:studio": "drizzle-kit studio",
     "db:seed:admin": "tsx scripts/seed-admin.ts",
-    "git:push": "git add . && git commit && git push"
+    "git:push": "next build && git add . && git commit && git push"
   },
   "dependencies": {
     "@libsql/client": "^0.17.3",
