@@ -301,51 +301,35 @@ export default function TaskDetailView({ task, hideBackLink = false }: TaskDetai
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {/* Metadata Row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "1rem" }}>
-            <div className="field-wrap">
-              <label className="field-label">Status</label>
-              <p style={{ fontWeight: "500" }}>{taskStatusLabel(task.status)}</p>
-            </div>
-
-            <div className="field-wrap">
-              <label className="field-label">Assignee</label>
-              <p>{task.assigneeName ?? "Unassigned"}</p>
-            </div>
-
-            <div className="field-wrap">
-              <label className="field-label">Due Date</label>
-              {isEditing ? (
-                <input
-                  type="date"
-                  className="text-input"
-                  value={editDueOn}
-                  onChange={(e) => setEditDueOn(e.target.value)}
-                />
-              ) : (
-                <p>{formatDueDate(task.dueAt)}</p>
-              )}
-            </div>
-
-            <div className="field-wrap">
-              <label className="field-label">Follow</label>
-              <AppButton
-                onClick={() => void handleToggleFollow()}
-                disabled={isTogglingFollow}
-                isLoading={isTogglingFollow}
-                loadingLabel={isFollowing ? "Unfollowing..." : "Following..."}
-                startIcon={isFollowing ? <FiHeart aria-hidden="true" /> : <FiEye aria-hidden="true" />}
-                variant="ghost"
-                style={{ alignSelf: "start" }}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </AppButton>
-            </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+          <div className="field-wrap">
+            <label className="field-label">Status</label>
+            <p style={{ fontWeight: "500" }}>{taskStatusLabel(task.status)}</p>
           </div>
 
-          {/* Description */}
           <div className="field-wrap">
+            <label className="field-label">Assignee</label>
+            <p>{task.assigneeName ?? "Unassigned"}</p>
+          </div>
+
+          <div className="field-wrap">
+            <label className="field-label">Due Date</label>
+            {isEditing ? (
+              <input
+                type="date"
+                className="text-input"
+                value={editDueOn}
+                onChange={(e) => setEditDueOn(e.target.value)}
+              />
+            ) : (
+              <p>{formatDueDate(task.dueAt)}</p>
+            )}
+          </div>
+
+          <div
+            className="field-wrap"
+            style={{ gridColumn: "1 / -1" }}
+          >
             <label className="field-label">Description</label>
             {isEditing ? (
               <textarea
@@ -361,28 +345,40 @@ export default function TaskDetailView({ task, hideBackLink = false }: TaskDetai
             )}
           </div>
 
-          {/* Meta Info */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-            <div className="field-wrap">
-              <label className="field-label">Created</label>
-              <p>
-                {formatDateTime(task.createdAt)} by <strong>{task.createdByUserName}</strong>
-              </p>
-            </div>
+          <div className="field-wrap">
+            <label className="field-label">Created</label>
+            <p>
+              {formatDateTime(task.createdAt)} by <strong>{task.createdByUserName}</strong>
+            </p>
+          </div>
 
-            <div className="field-wrap">
-              <label className="field-label">Progress</label>
-              <AppButton
-                onClick={() => void handleAdvanceTask()}
-                disabled={task.status === "completed" || isAdvancing}
-                isLoading={isAdvancing}
-                loadingLabel="Updating..."
-                variant="ghost"
-                style={{ alignSelf: "start" }}
-              >
-                {task.status === "not_started" ? "Start" : task.status === "in_progress" ? "Mark Complete" : "Completed"}
-              </AppButton>
-            </div>
+          <div className="field-wrap">
+            <label className="field-label">Progress</label>
+            <AppButton
+              onClick={() => void handleAdvanceTask()}
+              disabled={task.status === "completed" || isAdvancing}
+              isLoading={isAdvancing}
+              loadingLabel="Updating..."
+              variant="ghost"
+              style={{ alignSelf: "start" }}
+            >
+              {task.status === "not_started" ? "Start" : task.status === "in_progress" ? "Mark Complete" : "Completed"}
+            </AppButton>
+          </div>
+
+          <div className="field-wrap">
+            <label className="field-label">Follow</label>
+            <AppButton
+              onClick={() => void handleToggleFollow()}
+              disabled={isTogglingFollow}
+              isLoading={isTogglingFollow}
+              loadingLabel={isFollowing ? "Unfollowing..." : "Following..."}
+              startIcon={isFollowing ? <FiHeart aria-hidden="true" /> : <FiEye aria-hidden="true" />}
+              variant="ghost"
+              style={{ alignSelf: "start" }}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </AppButton>
           </div>
         </div>
       </section>

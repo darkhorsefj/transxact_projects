@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
+import Link from "next/link";
 import { FiArrowDown, FiArrowUp } from "react-icons/fi";
 import InlineStatus from "@/app/ui/inlineStatus";
 import { useSseRefresh } from "@/app/ui/useSseRefresh";
@@ -28,7 +29,6 @@ function resolveAssigneeName(assigneeName: string | null): string {
   if (!assigneeName || !assigneeName.trim()) {
     return "Unassigned";
   }
-
   return assigneeName;
 }
 
@@ -44,12 +44,8 @@ export default function DashboardView({
   useSseRefresh();
   const [taskFilter, setTaskFilter] = useState("");
   const [issueFilter, setIssueFilter] = useState("");
-  const [taskSortDirection, setTaskSortDirection] = useState<SortDirection>(
-    "desc",
-  );
-  const [issueSortDirection, setIssueSortDirection] = useState<SortDirection>(
-    "desc",
-  );
+  const [taskSortDirection, setTaskSortDirection] = useState<SortDirection>("desc");
+  const [issueSortDirection, setIssueSortDirection] = useState<SortDirection>("desc");
 
   const filteredAndSortedTasks = useMemo(() => {
     const normalizedFilter = taskFilter.trim().toLowerCase();
@@ -62,7 +58,6 @@ export default function DashboardView({
       if (countDelta !== 0) {
         return taskSortDirection === "asc" ? countDelta : -countDelta;
       }
-
       const aName = resolveAssigneeName(a.assigneeName);
       const bName = resolveAssigneeName(b.assigneeName);
       return aName.localeCompare(bName);
@@ -80,7 +75,6 @@ export default function DashboardView({
       if (countDelta !== 0) {
         return issueSortDirection === "asc" ? countDelta : -countDelta;
       }
-
       return a.projectName.localeCompare(b.projectName);
     });
   }, [issueFilter, issueSortDirection, openIssuesByProject]);
@@ -103,18 +97,18 @@ export default function DashboardView({
   return (
     <section className="dashboard-stack">
       <div className="kpi-grid">
-        <article className="kpi-card">
+        <Link href="/tasks" className="kpi-card kpi-card-link">
           <p className="kpi-label">Overdue tasks</p>
           <p className="kpi-value">{overdueTaskCount}</p>
-        </article>
-        <article className="kpi-card">
+        </Link>
+        <Link href="/tasks" className="kpi-card kpi-card-link">
           <p className="kpi-label">Active assignees</p>
           <p className="kpi-value">{openTasksByAssignee.length}</p>
-        </article>
-        <article className="kpi-card">
+        </Link>
+        <Link href="/issues" className="kpi-card kpi-card-link">
           <p className="kpi-label">Projects with open issues</p>
           <p className="kpi-value">{openIssuesByProject.length}</p>
-        </article>
+        </Link>
       </div>
 
       <InlineStatus
@@ -131,7 +125,7 @@ export default function DashboardView({
               value={taskFilter}
               onChange={(event) => setTaskFilter(event.target.value)}
               className="filter-input"
-              placeholder="Quick filter by assignee"
+              placeholder="Filter by assignee"
               aria-label="Filter assignees"
             />
             <button
@@ -140,10 +134,7 @@ export default function DashboardView({
               onClick={toggleTaskSortDirection}
             >
               <span className="sort-button-content">
-                <TaskSortIcon
-                  className="sort-button-icon"
-                  aria-hidden="true"
-                />
+                <TaskSortIcon className="sort-button-icon" aria-hidden="true" />
                 <span>
                   Sort {taskSortDirection === "desc" ? "highest first" : "lowest first"}
                 </span>
@@ -163,10 +154,7 @@ export default function DashboardView({
             <tbody>
               {filteredAndSortedTasks.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={2}
-                    className="empty-row"
-                  >
+                  <td colSpan={2} className="empty-row">
                     No matching assignees.
                   </td>
                 </tr>
@@ -174,7 +162,14 @@ export default function DashboardView({
                 filteredAndSortedTasks.map((item, index) => (
                   <tr key={`${resolveAssigneeName(item.assigneeName)}-${index}`}>
                     <td>{resolveAssigneeName(item.assigneeName)}</td>
-                    <td>{item.total}</td>
+                    <td>
+                      <Link
+                        href={`/tasks?search=${encodeURIComponent(resolveAssigneeName(item.assigneeName))}`}
+                        className="text-link"
+                      >
+                        {item.total}
+                      </Link>
+                    </td>
                   </tr>
                 ))
               )}
@@ -185,16 +180,14 @@ export default function DashboardView({
 
       <section className="card">
         <div className="card-header">
-          <div>
-            <h2>Open issues by project</h2>
-          </div>
+          <h2>Open issues by project</h2>
           <div className="card-controls">
             <input
               type="search"
               value={issueFilter}
               onChange={(event) => setIssueFilter(event.target.value)}
               className="filter-input"
-              placeholder="Quick filter by project"
+              placeholder="Filter by project"
               aria-label="Filter projects"
             />
             <button
@@ -203,10 +196,7 @@ export default function DashboardView({
               onClick={toggleIssueSortDirection}
             >
               <span className="sort-button-content">
-                <IssueSortIcon
-                  className="sort-button-icon"
-                  aria-hidden="true"
-                />
+                <IssueSortIcon className="sort-button-icon" aria-hidden="true" />
                 <span>
                   Sort {issueSortDirection === "desc" ? "highest first" : "lowest first"}
                 </span>
@@ -226,10 +216,7 @@ export default function DashboardView({
             <tbody>
               {filteredAndSortedIssues.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={2}
-                    className="empty-row"
-                  >
+                  <td colSpan={2} className="empty-row">
                     No matching projects.
                   </td>
                 </tr>
@@ -237,7 +224,14 @@ export default function DashboardView({
                 filteredAndSortedIssues.map((item) => (
                   <tr key={item.projectName}>
                     <td>{item.projectName}</td>
-                    <td>{item.total}</td>
+                    <td>
+                      <Link
+                        href={`/issues?search=${encodeURIComponent(item.projectName)}`}
+                        className="text-link"
+                      >
+                        {item.total}
+                      </Link>
+                    </td>
                   </tr>
                 ))
               )}

@@ -254,40 +254,30 @@ export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactE
           </div>
         </div>
 
-        <div className="workflow-form">
-          {/* Metadata Row 1 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "2rem" }}>
-            <div className="field-wrap">
-              <label className="field-label">Status</label>
-              <p style={{ fontWeight: "500" }}>{issueStatusLabel(issue.status)}</p>
-              <AppButton
-                onClick={() => void handleAdvanceIssue()}
-                disabled={issue.status === "closed" || isAdvancing}
-                isLoading={isAdvancing}
-                loadingLabel="Updating..."
-                style={{ marginTop: "0.5rem", width: "100%" }}
-              >
-                Next Step
-              </AppButton>
-            </div>
-
-            <div className="field-wrap">
-              <label className="field-label">Assignee</label>
-              <p>{issue.assigneeName ?? "Unassigned"}</p>
-            </div>
-
-            {issue.taskId && (
-              <div className="field-wrap">
-                <label className="field-label">Related Task</label>
-                <Link href={`/tasks/${issue.taskId}`} className="text-link">
-                  {issue.taskTitle}
-                </Link>
-              </div>
-            )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+          <div className="field-wrap">
+            <label className="field-label">Status</label>
+            <p style={{ fontWeight: "500" }}>{issueStatusLabel(issue.status)}</p>
           </div>
 
-          {/* Description */}
-          <div className="field-wrap workflow-span-all">
+          <div className="field-wrap">
+            <label className="field-label">Assignee</label>
+            <p>{issue.assigneeName ?? "Unassigned"}</p>
+          </div>
+
+          {issue.taskId && (
+            <div className="field-wrap">
+              <label className="field-label">Related Task</label>
+              <Link href={`/tasks/${issue.taskId}`} className="text-link">
+                {issue.taskTitle}
+              </Link>
+            </div>
+          )}
+
+          <div
+            className="field-wrap"
+            style={{ gridColumn: "1 / -1" }}
+          >
             <label className="field-label">Description</label>
             {isEditing ? (
               <textarea
@@ -303,28 +293,40 @@ export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactE
             )}
           </div>
 
-          {/* Meta Info */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
-            <div className="field-wrap">
-              <label className="field-label">Created</label>
-              <p>
-                {formatDateTime(issue.createdAt)} by <strong>{issue.createdByUserName}</strong>
-              </p>
-            </div>
+          <div className="field-wrap">
+            <label className="field-label">Created</label>
+            <p>
+              {formatDateTime(issue.createdAt)} by <strong>{issue.createdByUserName}</strong>
+            </p>
+          </div>
 
-            <div className="field-wrap">
-              <label className="field-label">Actions</label>
-              <AppButton
-                onClick={() => void handleToggleFollow()}
-                disabled={isTogglingFollow}
-                isLoading={isTogglingFollow}
-                loadingLabel={isFollowing ? "Unfollowing..." : "Following..."}
-                startIcon={isFollowing ? <FiHeart aria-hidden="true" /> : <FiEye aria-hidden="true" />}
-                style={{ width: "100%" }}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </AppButton>
-            </div>
+          <div className="field-wrap">
+            <label className="field-label">Progress</label>
+            <AppButton
+              onClick={() => void handleAdvanceIssue()}
+              disabled={issue.status === "closed" || isAdvancing}
+              isLoading={isAdvancing}
+              loadingLabel="Updating..."
+              variant="ghost"
+              style={{ alignSelf: "start" }}
+            >
+              Next Step
+            </AppButton>
+          </div>
+
+          <div className="field-wrap">
+            <label className="field-label">Follow</label>
+            <AppButton
+              onClick={() => void handleToggleFollow()}
+              disabled={isTogglingFollow}
+              isLoading={isTogglingFollow}
+              loadingLabel={isFollowing ? "Unfollowing..." : "Following..."}
+              startIcon={isFollowing ? <FiHeart aria-hidden="true" /> : <FiEye aria-hidden="true" />}
+              variant="ghost"
+              style={{ alignSelf: "start" }}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </AppButton>
           </div>
         </div>
       </section>
@@ -420,11 +422,11 @@ export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactE
           </div>
 
           {/* Add Comment Form */}
-          <div className="workflow-form">
-            <div className="field-wrap workflow-span-all">
-              <label htmlFor="comment-input" className="field-label">
-                Add Comment
-              </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <label htmlFor="comment-input" className="field-label">
+              Add Comment
+            </label>
+            <div style={{ display: "flex", alignItems: "end", gap: "0.35rem" }}>
               <textarea
                 id="comment-input"
                 className="text-input workflow-textarea"
@@ -433,16 +435,15 @@ export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactE
                 disabled={isAddingComment}
                 placeholder="Share context or updates..."
               />
+              <AppButton
+                onClick={() => void handleAddComment()}
+                disabled={isAddingComment || !commentDraft.trim()}
+                isLoading={isAddingComment}
+                loadingLabel="Adding..."
+              >
+                Post Comment
+              </AppButton>
             </div>
-
-            <AppButton
-              onClick={() => void handleAddComment()}
-              disabled={isAddingComment || !commentDraft.trim()}
-              isLoading={isAddingComment}
-              loadingLabel="Adding..."
-            >
-              Post Comment
-            </AppButton>
           </div>
         </div>
       </section>

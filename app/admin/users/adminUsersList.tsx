@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { Spinner } from "@/app/ui/loading";
 import Modal from "@/app/ui/modal";
 import { statusBadgeMap, roleBadgeMap } from "@/app/ui/formStatus";
 
@@ -306,7 +307,9 @@ export function AdminUsersList() {
 
       {loading ? (
           <div className="card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
-            <div className="loading-spinner"></div>
+            <div style={{ marginBottom: "0.75rem" }}>
+              <Spinner />
+            </div>
           <p className="empty-row">Loading users...</p>
         </div>
       ) : users.length === 0 ? (

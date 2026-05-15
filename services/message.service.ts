@@ -386,6 +386,38 @@ export async function listMessagingPageData(
   };
 }
 
+export async function searchUsers(query: string): Promise<UserOption[]> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  const normalized = query.trim();
+  if (normalized.length === 0) return [];
+
+  const pattern = `%${normalized}%`;
+
+  const rows = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    })
+    .from(user)
+    .where(
+      and(
+        eq(user.status, "active"),
+        sql`${user.id} != ${currentUser.id}`,
+        sql`(LOWER(COALESCE(${user.name}, '')) LIKE LOWER(${pattern}) OR LOWER(${user.email}) LIKE LOWER(${pattern}))`,
+      ),
+    )
+    .orderBy(sql`coalesce(${user.name}, ${user.email}) ASC`)
+    .limit(8);
+
+  return rows.map((row) => ({
+    id: row.id,
+    label: displayName(row.name, row.email),
+  }));
+}
+
 export async function createOrOpenConversation(peerUserId: number): Promise<number> {
   const currentUser = await requireSessionUser();
   await ensureDbSchema();

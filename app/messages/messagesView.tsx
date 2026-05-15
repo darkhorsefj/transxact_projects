@@ -13,6 +13,7 @@ import {
   FiFlag,
   FiMessageSquare,
   FiPlus,
+  FiSearch,
   FiSend,
   FiTrash2,
   FiUserCheck,
@@ -29,6 +30,7 @@ import {
   deleteDirectMessage,
   editDirectMessage,
   markConversationRead,
+  searchUsers,
   sendDirectMessage,
   setConversationArchived,
   type ConversationDetail,
@@ -53,35 +55,19 @@ interface StatusState {
 
 function formatTime(isoValue: string): string {
   const parsed = new Date(isoValue);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
+  if (Number.isNaN(parsed.getTime())) return "";
   const now = new Date();
   const diffMs = now.getTime() - parsed.getTime();
   const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffDays === 0) {
-    return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-
-  if (diffDays === 1) {
-    return "Yesterday";
-  }
-
-  if (diffDays < 7) {
-    return parsed.toLocaleDateString([], { weekday: "short" });
-  }
-
+  if (diffDays === 0) return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return parsed.toLocaleDateString([], { weekday: "short" });
   return parsed.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 function formatFullDateTime(isoValue: string): string {
   const parsed = new Date(isoValue);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
+  if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toLocaleString();
 }
 
@@ -101,20 +87,32 @@ export default function MessagesView({
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingBody, setEditingBody] = useState("");
   const [status, setStatus] = useState<StatusState | null>(null);
+  const [convSearch, setConvSearch] = useState("");
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<UserOption[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const userSearchRef = useRef<HTMLDivElement>(null);
+  const userSearchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeConversationId = activeConversation?.conversationId ?? null;
   const hasConversation = Boolean(activeConversation);
 
-  useEffect(() => {
-    if (!activeConversationId) {
-      return;
-    }
+  const filteredConversations = useMemo(() => {
+    const q = convSearch.trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter((c) =>
+      c.participantLabel.toLowerCase().includes(q) ||
+      (c.lastMessagePreview?.toLowerCase().includes(q) ?? false)
+    );
+  }, [conversations, convSearch]);
 
-    void markConversationRead(activeConversationId).catch(() => {
-      // Best effort for real-time unread updates.
-    });
+  useEffect(() => {
+    if (!activeConversationId) return;
+    void markConversationRead(activeConversationId).catch(() => {});
   }, [activeConversationId]);
 
   useEffect(() => {
@@ -122,18 +120,23 @@ export default function MessagesView({
   }, [activeConversation?.messages]);
 
   useEffect(() => {
-    if (hasConversation) {
-      textareaRef.current?.focus();
-    }
+    if (hasConversation) textareaRef.current?.focus();
   }, [hasConversation]);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (userSearchRef.current && !userSearchRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   useSseRefresh();
 
   const canSendInConversation = useMemo(() => {
-    if (!activeConversation) {
-      return false;
-    }
-
+    if (!activeConversation) return false;
     return !activeConversation.isBlockedByCurrentUser && !activeConversation.isBlockedByOtherUser;
   }, [activeConversation]);
 
@@ -145,12 +148,42 @@ export default function MessagesView({
     setStatus(null);
   };
 
+  const handleUserSearchInput = (value: string): void => {
+    setUserSearchQuery(value);
+    setShowUserDropdown(true);
+    setHighlightedIndex(0);
+
+    if (userSearchTimeout.current) clearTimeout(userSearchTimeout.current);
+
+    if (!value.trim()) {
+      setUserSearchResults([]);
+      return;
+    }
+
+    userSearchTimeout.current = setTimeout(async () => {
+      setIsSearchingUsers(true);
+      try {
+        const results = await searchUsers(value);
+        setUserSearchResults(results);
+      } catch {
+        setUserSearchResults([]);
+      } finally {
+        setIsSearchingUsers(false);
+      }
+    }, 200);
+  };
+
+  const selectUser = (user: UserOption): void => {
+    setRecipientId(String(user.id));
+    setUserSearchQuery(user.label);
+    setShowUserDropdown(false);
+    setUserSearchResults([]);
+  };
+
   const handleStartConversation = async (): Promise<void> => {
     const nextRecipientId = Number(recipientId);
     if (!Number.isInteger(nextRecipientId) || nextRecipientId <= 0) {
-      const message = "Select a user to start a conversation.";
-      setStatus({ tone: "error", message });
-      toast.error(message);
+      setStatus({ tone: "error", message: "Select a user to start a conversation." });
       return;
     }
 
@@ -161,8 +194,7 @@ export default function MessagesView({
       router.push(`/messages?conversationId=${conversationId}`);
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to open conversation.";
+      const message = error instanceof Error ? error.message : "Unable to open conversation.";
       setStatus({ tone: "error", message });
       toast.error(message);
     } finally {
@@ -171,14 +203,9 @@ export default function MessagesView({
   };
 
   const handleSendMessage = async (): Promise<void> => {
-    if (!activeConversation || !messageBody.trim()) {
-      return;
-    }
-
+    if (!activeConversation || !messageBody.trim()) return;
     if (!canSendInConversation) {
-      const message = "Messaging is unavailable because this conversation is blocked.";
-      setStatus({ tone: "error", message });
-      toast.error(message);
+      setStatus({ tone: "error", message: "Messaging is unavailable because this conversation is blocked." });
       return;
     }
 
@@ -189,8 +216,7 @@ export default function MessagesView({
       clearStatus();
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to send message.";
+      const message = error instanceof Error ? error.message : "Unable to send message.";
       setStatus({ tone: "error", message });
       toast.error(message);
     } finally {
@@ -217,10 +243,7 @@ export default function MessagesView({
   };
 
   const handleSaveEdit = async (): Promise<void> => {
-    if (!editingMessageId) {
-      return;
-    }
-
+    if (!editingMessageId) return;
     try {
       await editDirectMessage(editingMessageId, editingBody);
       setEditingMessageId(null);
@@ -228,8 +251,7 @@ export default function MessagesView({
       clearStatus();
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to edit message.";
+      const message = error instanceof Error ? error.message : "Unable to edit message.";
       setStatus({ tone: "error", message });
       toast.error(message);
     }
@@ -240,18 +262,14 @@ export default function MessagesView({
       await deleteDirectMessage(messageId);
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to delete message.";
+      const message = error instanceof Error ? error.message : "Unable to delete message.";
       setStatus({ tone: "error", message });
       toast.error(message);
     }
   };
 
   const handleArchiveConversation = async (): Promise<void> => {
-    if (!activeConversation) {
-      return;
-    }
-
+    if (!activeConversation) return;
     try {
       await setConversationArchived(activeConversation.conversationId, true);
       setStatus({ tone: "success", message: "Conversation archived." });
@@ -259,18 +277,14 @@ export default function MessagesView({
       router.push("/messages");
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to archive conversation.";
+      const message = error instanceof Error ? error.message : "Unable to archive conversation.";
       setStatus({ tone: "error", message });
       toast.error(message);
     }
   };
 
   const handleBlockToggle = async (): Promise<void> => {
-    if (!activeConversation) {
-      return;
-    }
-
+    if (!activeConversation) return;
     try {
       if (activeConversation.isBlockedByCurrentUser) {
         await unblockUserForMessaging(activeConversation.participantUserId);
@@ -280,34 +294,25 @@ export default function MessagesView({
         setStatus({ tone: "success", message: "User blocked and conversation hidden." });
         router.push("/messages");
       }
-
       clearStatus();
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to update block state.";
+      const message = error instanceof Error ? error.message : "Unable to update block state.";
       setStatus({ tone: "error", message });
       toast.error(message);
     }
   };
 
   const handleReportConversation = async (): Promise<void> => {
-    if (!activeConversation) {
-      return;
-    }
-
+    if (!activeConversation) return;
     const reason = window.prompt("Describe the issue with this conversation:");
-    if (!reason) {
-      return;
-    }
-
+    if (!reason) return;
     try {
       await reportConversation(activeConversation.conversationId, reason);
       setStatus({ tone: "success", message: "Report submitted to admin review queue." });
       toast.success("Report submitted.");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to submit report.";
+      const message = error instanceof Error ? error.message : "Unable to submit report.";
       setStatus({ tone: "error", message });
       toast.error(message);
     }
@@ -315,17 +320,13 @@ export default function MessagesView({
 
   const handleReportMessage = async (messageId: number): Promise<void> => {
     const reason = window.prompt("Describe the issue with this message:");
-    if (!reason) {
-      return;
-    }
-
+    if (!reason) return;
     try {
       await reportMessage(messageId, reason);
       setStatus({ tone: "success", message: "Message report submitted." });
       toast.success("Report submitted.");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to submit message report.";
+      const message = error instanceof Error ? error.message : "Unable to submit message report.";
       setStatus({ tone: "error", message });
       toast.error(message);
     }
@@ -336,25 +337,52 @@ export default function MessagesView({
       <aside className="discord-sidebar">
         <div className="discord-sidebar-header">
           <div className="discord-new-conv">
-            <select
-              className="text-input"
-              value={recipientId}
-              onChange={(event) => setRecipientId(event.target.value)}
-              disabled={isCreatingConversation || userOptions.length === 0}
-            >
-              {userOptions.length === 0 ? <option value="">No users</option> : null}
-              {userOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="combobox-wrap" style={{ flex: 1, minWidth: 0 }} ref={userSearchRef}>
+              <input
+                className="text-input"
+                style={{ width: "100%" }}
+                value={userSearchQuery}
+                onChange={(e) => handleUserSearchInput(e.target.value)}
+                onFocus={() => {
+                  if (userSearchQuery.trim()) setShowUserDropdown(true);
+                }}
+                placeholder="Search users..."
+                disabled={isCreatingConversation}
+              />
+              {showUserDropdown && (
+                <div className="combobox-list">
+                  {isSearchingUsers ? (
+                    <div className="combobox-empty">Searching...</div>
+                  ) : userSearchResults.length === 0 ? (
+                    <div className="combobox-empty">
+                      {userSearchQuery.trim() ? "No users found" : "Type to search users"}
+                    </div>
+                  ) : (
+                    userSearchResults.map((user, index) => (
+                      <div
+                        key={user.id}
+                        className={`combobox-option ${index === highlightedIndex ? "is-highlighted" : ""}`}
+                        onClick={() => selectUser(user)}
+                        onMouseEnter={() => setHighlightedIndex(index)}
+                      >
+                        <div
+                          className="discord-conv-avatar"
+                          style={{ backgroundColor: getAvatarColorByUserId(user.id, MESSAGE_AVATAR_COLORS) }}
+                        >
+                          {getInitials(user.label)}
+                        </div>
+                        <span>{user.label}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
             <AppButton
               variant="ghost"
               onClick={() => void handleStartConversation()}
               isLoading={isCreatingConversation}
               loadingLabel="..."
-              disabled={userOptions.length === 0}
               startIcon={<FiPlus aria-hidden="true" />}
             >
               New
@@ -374,17 +402,33 @@ export default function MessagesView({
           ) : null}
         </div>
 
+        <div style={{ padding: "0.2rem 0.45rem 0" }}>
+          <div style={{ position: "relative" }}>
+            <FiSearch
+              size={14}
+              style={{ position: "absolute", left: "0.5rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }}
+            />
+            <input
+              className="text-input"
+              style={{ paddingLeft: "1.8rem", width: "100%", fontSize: "0.72rem" }}
+              value={convSearch}
+              onChange={(e) => setConvSearch(e.target.value)}
+              placeholder="Search conversations..."
+            />
+          </div>
+        </div>
+
         <div className="discord-conv-list">
-          {conversations.length === 0 ? (
+          {filteredConversations.length === 0 ? (
             <div className="discord-conv-empty">
               <FiMessageSquare size={28} aria-hidden="true" />
               <span>No conversations yet.</span>
               <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                Select a user above to start one.
+                Search for a user above to start one.
               </span>
             </div>
           ) : (
-            conversations.map((item) => (
+            filteredConversations.map((item) => (
               <div
                 key={item.conversationId}
                 className={`discord-conv-item ${item.conversationId === activeConversationId ? "is-active" : ""}`}

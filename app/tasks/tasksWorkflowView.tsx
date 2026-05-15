@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
-import { FiCheckSquare, FiEye, FiEyeOff, FiMessageCircle, FiMessageSquare, FiPlus, FiSearch } from "react-icons/fi";
+import { FiArrowLeft, FiCheckSquare, FiEye, FiEyeOff, FiMessageCircle, FiMessageSquare, FiPlus, FiSearch } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
 import { FormStatus } from "@/app/ui/formStatus";
@@ -14,10 +15,10 @@ import { useSseRefresh } from "@/app/ui/useSseRefresh";
 import { formatDueDate } from "@/lib/utils";
 import TaskActionModal from "./taskActionModal";
 import TaskCommentModal from "./taskCommentModal";
-import TaskDetailModal from "./taskDetailModal";
 import {
   advanceTaskStatus,
   createTask,
+  reverseTaskStatus,
   setTaskFollow,
   type AssigneeOption,
   type ProjectOption,
@@ -39,10 +40,7 @@ function defaultDueOn(): string {
 
 function isOverdue(isoDate: string): boolean {
   const dueDate = new Date(isoDate);
-  if (Number.isNaN(dueDate.getTime())) {
-    return false;
-  }
-
+  if (Number.isNaN(dueDate.getTime())) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return dueDate < today;
@@ -56,62 +54,83 @@ export default function TasksWorkflowView({
 }: TasksWorkflowViewProps): ReactElement {
   useSseRefresh();
   const router = useRouter();
-  const [projectId, setProjectId] = useState<string>(
-    projects[0] ? String(projects[0].id) : "",
-  );
-  const [assigneeUserId, setAssigneeUserId] = useState<string>(
-    String(currentUserId),
-  );
+  const [projectId, setProjectId] = useState<string>(projects[0] ? String(projects[0].id) : "");
+  const [assigneeUserId, setAssigneeUserId] = useState<string>(String(currentUserId));
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueOn, setDueOn] = useState(defaultDueOn);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdvancingId, setIsAdvancingId] = useState<number | null>(null);
+  const [isReversingId, setIsReversingId] = useState<number | null>(null);
   const [isTogglingFollowId, setIsTogglingFollowId] = useState<number | null>(null);
   const [status, setStatus] = useState<FormStatus | null>(null);
   const [commentTaskId, setCommentTaskId] = useState<number | null>(null);
   const [commentTaskTitle, setCommentTaskTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [detailTaskId, setDetailTaskId] = useState<number | null>(null);
+  const [filterProjectId, setFilterProjectId] = useState("");
+  const [filterAssigneeId, setFilterAssigneeId] = useState("");
+  const [filterOverdue, setFilterOverdue] = useState(false);
   const [actionTaskId, setActionTaskId] = useState<number | null>(null);
   const [actionTaskTitle, setActionTaskTitle] = useState("");
 
   const hasProject = projects.length > 0;
 
-  const filteredTasks = searchQuery.trim()
-    ? tasks.filter((t) => {
-        const q = searchQuery.toLowerCase();
-        return (
-          t.title.toLowerCase().includes(q) ||
-          (t.description?.toLowerCase().includes(q) ?? false) ||
-          t.projectName.toLowerCase().includes(q) ||
-          t.phaseName.toLowerCase().includes(q) ||
-          (t.assigneeName?.toLowerCase().includes(q) ?? false)
-        );
-      })
-    : tasks;
+  const filteredTasks = useMemo(() => {
+    let result = tasks;
+
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      result = result.filter((t) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.description?.toLowerCase().includes(q) ?? false) ||
+        t.projectName.toLowerCase().includes(q) ||
+        t.phaseName.toLowerCase().includes(q) ||
+        (t.assigneeName?.toLowerCase().includes(q) ?? false)
+      );
+    }
+
+    if (filterProjectId) {
+      const pid = Number(filterProjectId);
+      result = result.filter((t) => {
+        const project = projects.find((p) => p.id === pid);
+        return project && t.projectName === project.name;
+      });
+    }
+
+    if (filterAssigneeId) {
+      const aid = Number(filterAssigneeId);
+      result = result.filter((t) => {
+        const assignee = assignees.find((a) => a.id === aid);
+        return assignee && t.assigneeName === assignee.label;
+      });
+    }
+
+    if (filterOverdue) {
+      result = result.filter((t) => isOverdue(t.dueAt) && t.status !== "completed");
+    }
+
+    return result;
+  }, [tasks, searchQuery, filterProjectId, filterAssigneeId, filterOverdue, projects, assignees]);
+
+  const taskCounts = useMemo(() => ({
+    notStarted: filteredTasks.filter((t) => t.status === "not_started").length,
+    inProgress: filteredTasks.filter((t) => t.status === "in_progress").length,
+    completed: filteredTasks.filter((t) => t.status === "completed").length,
+  }), [filteredTasks]);
 
   const handleCreateTask = async (): Promise<void> => {
     const normalizedTitle = title.trim();
     if (!projectId) {
-      const message = "Select a project before creating a task.";
-      setStatus({ tone: "error", message });
-      toast.error(message);
+      setStatus({ tone: "error", message: "Select a project before creating a task." });
       return;
     }
-
     if (normalizedTitle.length < 3) {
-      const message = "Task title must be at least 3 characters.";
-      setStatus({ tone: "error", message });
-      toast.error(message);
+      setStatus({ tone: "error", message: "Task title must be at least 3 characters." });
       return;
     }
-
     if (!dueOn) {
-      const message = "Task due date is required.";
-      setStatus({ tone: "error", message });
-      toast.error(message);
+      setStatus({ tone: "error", message: "Task due date is required." });
       return;
     }
 
@@ -131,8 +150,7 @@ export default function TasksWorkflowView({
       setIsModalOpen(false);
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to create task.";
+      const message = error instanceof Error ? error.message : "Unable to create task.";
       setStatus({ tone: "error", message });
       toast.error(message);
     } finally {
@@ -147,8 +165,7 @@ export default function TasksWorkflowView({
       toast.success("Task status updated");
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to update task status.";
+      const message = error instanceof Error ? error.message : "Unable to update task status.";
       setStatus({ tone: "error", message });
       toast.error(message);
     } finally {
@@ -156,24 +173,124 @@ export default function TasksWorkflowView({
     }
   };
 
-  const handleToggleFollow = async (
-    taskId: number,
-    follow: boolean,
-  ): Promise<void> => {
+  const handleReverseTask = async (taskId: number): Promise<void> => {
+    setIsReversingId(taskId);
+    try {
+      await reverseTaskStatus(taskId);
+      toast.success("Task moved back");
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to move task back.";
+      setStatus({ tone: "error", message });
+      toast.error(message);
+    } finally {
+      setIsReversingId(null);
+    }
+  };
+
+  const handleToggleFollow = async (taskId: number, follow: boolean): Promise<void> => {
     setIsTogglingFollowId(taskId);
     try {
       await setTaskFollow(taskId, follow);
       toast.success(follow ? "Task followed" : "Task unfollowed");
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to update follow state.";
+      const message = error instanceof Error ? error.message : "Unable to update follow state.";
       setStatus({ tone: "error", message });
       toast.error(message);
     } finally {
       setIsTogglingFollowId(null);
     }
   };
+
+  const kanbanCard = (item: TaskWorkflowItem) => {
+    const canGoBack =
+      (item.status === "in_progress" || item.status === "completed");
+    const nextLabel =
+      item.status === "not_started" ? "Start →"
+      : item.status === "in_progress" ? "Complete →"
+      : null;
+
+    return (
+      <div key={item.id} className="kanban-card">
+        <Link href={`/tasks/${item.id}`} className="kanban-card-title" style={{ textDecoration: "none" }}>
+          {item.title}
+        </Link>
+        {item.description ? (
+          <div className="kanban-card-desc">{item.description}</div>
+        ) : null}
+        <div className="kanban-card-meta">
+          <span className="kanban-card-meta-item">{item.projectName}</span>
+          <span className="kanban-card-meta-item">{item.phaseName}</span>
+          <span className="kanban-card-meta-item">{item.assigneeName ?? "Unassigned"}</span>
+          <span className={`kanban-card-meta-item${isOverdue(item.dueAt) ? " is-overdue" : ""}`}>Due {formatDueDate(item.dueAt)}</span>
+        </div>
+        <div className="kanban-card-footer">
+          <div className="button-row">
+            <button
+              onClick={() => handleToggleFollow(item.id, !item.isFollowing)}
+              disabled={isTogglingFollowId === item.id}
+              className="slack-action-btn"
+              title={item.isFollowing ? "Unfollow" : "Follow"}
+            >
+              {item.isFollowing ? <FiEyeOff size={14} /> : <FiEye size={14} />}
+            </button>
+            <button
+              onClick={() => {
+                setCommentTaskId(item.id);
+                setCommentTaskTitle(item.title);
+              }}
+              className="slack-action-btn"
+              title="Comments"
+            >
+              {item.unreadCommentCount > 0 ? (
+                <FiMessageCircle size={14} color="var(--brand)" />
+              ) : (
+                <FiMessageSquare size={14} />
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setActionTaskId(item.id);
+                setActionTaskTitle(item.title);
+              }}
+              className="slack-action-btn"
+              title="Actions"
+            >
+              <FiCheckSquare size={14} />
+            </button>
+          </div>
+          <div className="button-row">
+            {canGoBack && (
+              <AppButton
+                onClick={() => handleReverseTask(item.id)}
+                disabled={isReversingId === item.id}
+                isLoading={isReversingId === item.id}
+                loadingLabel="Moving..."
+                variant="ghost"
+                startIcon={<FiArrowLeft aria-hidden="true" />}
+              >
+                Back
+              </AppButton>
+            )}
+            {nextLabel && (
+              <AppButton
+                onClick={() => handleAdvanceTask(item.id)}
+                disabled={isAdvancingId === item.id}
+                isLoading={isAdvancingId === item.id}
+                loadingLabel="Moving..."
+                variant="ghost"
+              >
+                {nextLabel}
+              </AppButton>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const clearFiltersActive = searchQuery || filterProjectId || filterAssigneeId || filterOverdue;
 
   return (
     <section className="workflow-stack">
@@ -197,271 +314,119 @@ export default function TasksWorkflowView({
             message="Create at least one project before adding tasks."
           />
         )}
-        {tasks.length === 0 ? (
-          <p className="empty-row">No tasks yet.</p>
+
+        {tasks.length === 0 && hasProject ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <FiCheckSquare size={32} aria-hidden="true" />
+            </div>
+            <p className="empty-state-title">No tasks yet</p>
+            <p>Create your first task to start tracking work.</p>
+          </div>
         ) : (
           <>
-            {/* Search / filter bar */}
-            {tasks.length > 10 && (
-              <div className="workflow-form" style={{ marginBottom: 0 }}>
-                <div className="field-wrap" style={{ flex: 1, position: "relative" }}>
-                  <FiSearch
-                    size={16}
-                    style={{ position: "absolute", left: "0.7rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }}
-                  />
-                  <input
-                    className="text-input"
-                    style={{ paddingLeft: "2rem" }}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search tasks by title, project, assignee..."
-                  />
-                </div>
-                {searchQuery.trim() && (
-                  <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                    {filteredTasks.length} of {tasks.length}
-                  </span>
-                )}
+            <div className="kanban-filter-bar">
+              <div className="combobox-wrap" style={{ flex: 1, minWidth: "10rem", position: "relative" }}>
+                <FiSearch
+                  size={16}
+                  style={{ position: "absolute", left: "0.7rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none", zIndex: 1 }}
+                />
+                <input
+                  className="text-input"
+                  style={{ paddingLeft: "2rem" }}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search tasks..."
+                />
               </div>
-            )}
+              <select
+                className="filter-input"
+                value={filterProjectId}
+                onChange={(e) => setFilterProjectId(e.target.value)}
+                aria-label="Filter by project"
+              >
+                <option value="">All projects</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <select
+                className="filter-input"
+                value={filterAssigneeId}
+                onChange={(e) => setFilterAssigneeId(e.target.value)}
+                aria-label="Filter by assignee"
+              >
+                <option value="">All assignees</option>
+                {assignees.map((a) => (
+                  <option key={a.id} value={a.id}>{a.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={cx("sort-button", filterOverdue && "is-active")}
+                onClick={() => setFilterOverdue((v) => !v)}
+                title="Show only overdue tasks"
+              >
+                <span style={{ fontSize: "0.75rem" }}>
+                  {filterOverdue ? "Overdue ✓" : "Overdue"}
+                </span>
+              </button>
+              {clearFiltersActive && (
+                <AppButton
+                  variant="ghost"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setFilterProjectId("");
+                    setFilterAssigneeId("");
+                    setFilterOverdue(false);
+                  }}
+                >
+                  Clear
+                </AppButton>
+              )}
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                {filteredTasks.length} of {tasks.length}
+              </span>
+            </div>
+
             <div className="kanban-board">
-              {/* Not Started column */}
               <div className="kanban-col is-new">
                 <div className="kanban-col-header">
                   <span className="kanban-col-title">Not Started</span>
-                  <span className="kanban-col-count">{filteredTasks.filter((t) => t.status === "not_started").length}</span>
+                  <span className="kanban-col-count">{taskCounts.notStarted}</span>
                 </div>
                 <div className="kanban-card-list">
-                  {filteredTasks
-                    .filter((item) => item.status === "not_started")
-                    .map((item) => (
-                  <div key={item.id} className="kanban-card">
-                    <button
-                      onClick={() => setDetailTaskId(item.id)}
-                      className="kanban-card-title"
-                      style={{ textAlign: "left", cursor: "pointer", border: "none", background: "none", padding: 0, fontFamily: "inherit" }}
-                    >
-                      {item.title}
-                    </button>
-                    {item.description ? (
-                      <div className="kanban-card-desc">{item.description}</div>
-                    ) : null}
-                    <div className="kanban-card-meta">
-                      <span className="kanban-card-meta-item">{item.projectName}</span>
-                      <span className="kanban-card-meta-item">{item.phaseName}</span>
-                      <span className="kanban-card-meta-item">{item.assigneeName ?? "Unassigned"}</span>
-                      <span className={`kanban-card-meta-item${isOverdue(item.dueAt) ? " is-overdue" : ""}`}>Due {formatDueDate(item.dueAt)}</span>
-                    </div>
-                    <div className="kanban-card-footer">
-                      <div className="button-row">
-                        <button
-                          onClick={() => handleToggleFollow(item.id, !item.isFollowing)}
-                          disabled={isTogglingFollowId === item.id}
-                          className="slack-action-btn"
-                          title={item.isFollowing ? "Unfollow" : "Follow"}
-                        >
-                          {item.isFollowing ? <FiEyeOff size={14} /> : <FiEye size={14} />}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setCommentTaskId(item.id);
-                            setCommentTaskTitle(item.title);
-                          }}
-                          className="slack-action-btn"
-                          title="Comments"
-                        >
-                          {item.unreadCommentCount > 0 ? (
-                            <FiMessageCircle size={14} color="var(--brand)" />
-                          ) : (
-                            <FiMessageSquare size={14} />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setActionTaskId(item.id);
-                            setActionTaskTitle(item.title);
-                          }}
-                          className="slack-action-btn"
-                          title="Actions"
-                        >
-                          <FiCheckSquare size={14} />
-                        </button>
-                      </div>
-                      <AppButton
-                        onClick={() => handleAdvanceTask(item.id)}
-                        disabled={isAdvancingId === item.id}
-                        isLoading={isAdvancingId === item.id}
-                        loadingLabel="Moving..."
-                        variant="ghost"
-                      >
-                        Start →
-                      </AppButton>
-                    </div>
-                  </div>
-                ))}
-                  {filteredTasks.filter((t) => t.status === "not_started").length === 0 && (
-                    <p className="kanban-empty-col">No tasks</p>
-                  )}
+                  {filteredTasks.filter((t) => t.status === "not_started").map(kanbanCard)}
+                  {taskCounts.notStarted === 0 && <p className="kanban-empty-col">No tasks</p>}
                 </div>
               </div>
 
-              {/* In Progress column */}
               <div className="kanban-col is-active">
                 <div className="kanban-col-header">
                   <span className="kanban-col-title">In Progress</span>
-                  <span className="kanban-col-count">{filteredTasks.filter((t) => t.status === "in_progress").length}</span>
+                  <span className="kanban-col-count">{taskCounts.inProgress}</span>
                 </div>
                 <div className="kanban-card-list">
-                  {filteredTasks
-                    .filter((item) => item.status === "in_progress")
-                    .map((item) => (
-                  <div key={item.id} className="kanban-card">
-                    <button
-                      onClick={() => setDetailTaskId(item.id)}
-                      className="kanban-card-title"
-                      style={{ textAlign: "left", cursor: "pointer", border: "none", background: "none", padding: 0, fontFamily: "inherit" }}
-                    >
-                      {item.title}
-                    </button>
-                    {item.description ? (
-                      <div className="kanban-card-desc">{item.description}</div>
-                    ) : null}
-                    <div className="kanban-card-meta">
-                      <span className="kanban-card-meta-item">{item.projectName}</span>
-                      <span className="kanban-card-meta-item">{item.phaseName}</span>
-                      <span className="kanban-card-meta-item">{item.assigneeName ?? "Unassigned"}</span>
-                      <span className={`kanban-card-meta-item${isOverdue(item.dueAt) ? " is-overdue" : ""}`}>Due {formatDueDate(item.dueAt)}</span>
-                    </div>
-                    <div className="kanban-card-footer">
-                      <div className="button-row">
-                        <button
-                          onClick={() => handleToggleFollow(item.id, !item.isFollowing)}
-                          disabled={isTogglingFollowId === item.id}
-                          className="slack-action-btn"
-                          title={item.isFollowing ? "Unfollow" : "Follow"}
-                        >
-                          {item.isFollowing ? <FiEyeOff size={14} /> : <FiEye size={14} />}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setCommentTaskId(item.id);
-                            setCommentTaskTitle(item.title);
-                          }}
-                          className="slack-action-btn"
-                          title="Comments"
-                        >
-                          {item.unreadCommentCount > 0 ? (
-                            <FiMessageCircle size={14} color="var(--brand)" />
-                          ) : (
-                            <FiMessageSquare size={14} />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setActionTaskId(item.id);
-                            setActionTaskTitle(item.title);
-                          }}
-                          className="slack-action-btn"
-                          title="Actions"
-                        >
-                          <FiCheckSquare size={14} />
-                        </button>
-                      </div>
-                      <AppButton
-                        onClick={() => handleAdvanceTask(item.id)}
-                        disabled={isAdvancingId === item.id}
-                        isLoading={isAdvancingId === item.id}
-                        loadingLabel="Moving..."
-                        variant="ghost"
-                      >
-                        Complete →
-                      </AppButton>
-                    </div>
-                  </div>
-                ))}
-                  {filteredTasks.filter((t) => t.status === "in_progress").length === 0 && (
-                    <p className="kanban-empty-col">No tasks</p>
-                  )}
+                  {filteredTasks.filter((t) => t.status === "in_progress").map(kanbanCard)}
+                  {taskCounts.inProgress === 0 && <p className="kanban-empty-col">No tasks</p>}
                 </div>
               </div>
 
-              {/* Completed column */}
               <div className="kanban-col is-done">
                 <div className="kanban-col-header">
                   <span className="kanban-col-title">Completed</span>
-                  <span className="kanban-col-count">{filteredTasks.filter((t) => t.status === "completed").length}</span>
+                  <span className="kanban-col-count">{taskCounts.completed}</span>
                 </div>
                 <div className="kanban-card-list">
-                  {filteredTasks
-                    .filter((item) => item.status === "completed")
-                    .map((item) => (
-                  <div key={item.id} className="kanban-card">
-                    <button
-                      onClick={() => setDetailTaskId(item.id)}
-                      className="kanban-card-title"
-                      style={{ textAlign: "left", cursor: "pointer", border: "none", background: "none", padding: 0, fontFamily: "inherit" }}
-                    >
-                      {item.title}
-                    </button>
-                    {item.description ? (
-                      <div className="kanban-card-desc">{item.description}</div>
-                    ) : null}
-                    <div className="kanban-card-meta">
-                      <span className="kanban-card-meta-item">{item.projectName}</span>
-                      <span className="kanban-card-meta-item">{item.phaseName}</span>
-                      <span className="kanban-card-meta-item">{item.assigneeName ?? "Unassigned"}</span>
-                      <span className="kanban-card-meta-item">Due {formatDueDate(item.dueAt)}</span>
-                    </div>
-                    <div className="kanban-card-footer">
-                      <div className="button-row">
-                        <button
-                          onClick={() => handleToggleFollow(item.id, !item.isFollowing)}
-                          disabled={isTogglingFollowId === item.id}
-                          className="slack-action-btn"
-                          title={item.isFollowing ? "Unfollow" : "Follow"}
-                        >
-                          {item.isFollowing ? <FiEyeOff size={14} /> : <FiEye size={14} />}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setCommentTaskId(item.id);
-                            setCommentTaskTitle(item.title);
-                          }}
-                          className="slack-action-btn"
-                          title="Comments"
-                        >
-                          {item.unreadCommentCount > 0 ? (
-                            <FiMessageCircle size={14} color="var(--brand)" />
-                          ) : (
-                            <FiMessageSquare size={14} />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setActionTaskId(item.id);
-                            setActionTaskTitle(item.title);
-                          }}
-                          className="slack-action-btn"
-                          title="Actions"
-                        >
-                          <FiCheckSquare size={14} />
-                        </button>
-                      </div>
-                      <span className="workflow-status-pill" style={{ color: "var(--success)", borderColor: "var(--success)" }}>
-                        ✓ Done
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                  {filteredTasks.filter((t) => t.status === "completed").length === 0 && (
-                    <p className="kanban-empty-col">No tasks</p>
-                  )}
+                  {filteredTasks.filter((t) => t.status === "completed").map(kanbanCard)}
+                  {taskCounts.completed === 0 && <p className="kanban-empty-col">No tasks</p>}
                 </div>
               </div>
             </div>
           </>
         )}
       </section>
+
       <Modal
         isOpen={isModalOpen}
         onClose={() => {
@@ -569,14 +534,6 @@ export default function TasksWorkflowView({
         />
       )}
 
-      {detailTaskId !== null && (
-        <TaskDetailModal
-          taskId={detailTaskId}
-          isOpen={detailTaskId !== null}
-          onClose={() => setDetailTaskId(null)}
-        />
-      )}
-
       {actionTaskId !== null && (
         <TaskActionModal
           taskId={actionTaskId}
@@ -590,4 +547,8 @@ export default function TasksWorkflowView({
       )}
     </section>
   );
+}
+
+function cx(...classNames: Array<string | false | null | undefined>): string {
+  return classNames.filter(Boolean).join(" ");
 }

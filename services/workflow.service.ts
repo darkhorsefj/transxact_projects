@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import db, { ensureDbSchema } from "@/db/connection";
 import {
   issue,
@@ -42,11 +42,24 @@ const NEXT_TASK_STATUS: Record<TaskStatus, TaskStatus> = {
   completed: "completed",
 };
 
+const PREV_TASK_STATUS: Record<TaskStatus, TaskStatus> = {
+  not_started: "not_started",
+  in_progress: "not_started",
+  completed: "in_progress",
+};
+
 const NEXT_ISSUE_STATUS: Record<IssueStatus, IssueStatus> = {
   open: "in_progress",
   in_progress: "resolved",
   resolved: "closed",
   closed: "closed",
+};
+
+const PREV_ISSUE_STATUS: Record<IssueStatus, IssueStatus> = {
+  open: "open",
+  in_progress: "open",
+  resolved: "in_progress",
+  closed: "resolved",
 };
 
 export interface ProjectOption {
@@ -489,6 +502,30 @@ export async function listProjectWorkflowData(): Promise<{
   return { projects };
 }
 
+export async function listArchivedProjects(): Promise<ProjectWorkflowItem[]> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const projectRows = await db
+    .select({
+      id: project.id,
+      name: project.name,
+      createdAt: project.createdAt,
+    })
+    .from(project)
+    .where(isNotNull(project.deletedAt))
+    .orderBy(desc(project.deletedAt));
+
+  return projectRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    createdAt: row.createdAt,
+    taskCount: 0,
+    openIssueCount: 0,
+    isFollowing: false,
+  }));
+}
+
 async function listTaskCommentReadAtByTaskId(
   taskIds: number[],
   userId: number,
@@ -719,6 +756,48 @@ export async function archiveProject(projectId: number): Promise<void> {
   });
 }
 
+export async function restoreProject(projectId: number): Promise<void> {
+  const currentUser = await requireSessionUser();
+  const nowIso = new Date().toISOString();
+
+  const projectRows = await db
+    .select({ name: project.name, createdByUserId: project.createdByUserId })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .limit(1);
+  if (projectRows.length === 0) {
+    throw new Error("Project not found.");
+  }
+
+  await db
+    .update(project)
+    .set({
+      deletedAt: null,
+      updatedAt: nowIso,
+    })
+    .where(eq(project.id, projectId));
+
+  await dispatchEntityNotification({
+    entity: {
+      type: "project",
+      id: projectId,
+      creatorUserId: projectRows[0].createdByUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "project_activity",
+      type: "project_restored",
+      title: `Project restored: ${projectRows[0].name}`,
+      body: `${currentUser.name ?? "An admin"} restored this project.`,
+      href: "/projects",
+      sourceType: "project",
+      sourceId: projectId,
+      emailDelayMinutes: 0,
+    },
+    globalRefresh: true,
+  });
+}
+
 export async function updateProject(projectId: number, name: string): Promise<void> {
   const currentUser = await requireSessionUser();
   const normalizedName = normalizeTitle(name, "Project name");
@@ -874,6 +953,65 @@ export async function advanceTaskStatus(taskId: number): Promise<TaskStatus> {
   });
 
   return nextStatus;
+}
+
+export async function reverseTaskStatus(taskId: number): Promise<TaskStatus> {
+  const currentUser = await requireSessionUser();
+
+  const rows = await db
+    .select({
+      id: task.id,
+      status: task.status,
+      title: task.title,
+      assigneeUserId: task.assigneeUserId,
+      createdByUserId: task.createdByUserId,
+    })
+    .from(task)
+    .where(and(eq(task.id, taskId), isNull(task.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Task not found.");
+  }
+
+  const prevStatus = PREV_TASK_STATUS[rows[0].status];
+  if (prevStatus === rows[0].status) {
+    return rows[0].status;
+  }
+
+  await db
+    .update(task)
+    .set({
+      status: prevStatus,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(task.id, taskId));
+
+  await dispatchEntityNotification({
+    entity: {
+      type: "task",
+      id: taskId,
+      creatorUserId: rows[0].createdByUserId,
+      assigneeUserId: rows[0].assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "task_activity",
+      type: "task_status_changed",
+      title: `Task status updated: ${rows[0].title}`,
+      body: `${currentUser.name ?? "Someone"} moved this task back to ${prevStatus.replace("_", " ")}.`,
+      href: `/tasks?taskId=${taskId}`,
+      sourceType: "task",
+      sourceId: taskId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      rows[0].createdByUserId,
+      rows[0].assigneeUserId,
+    ],
+  });
+
+  return prevStatus;
 }
 
 export async function updateTask(
@@ -1121,6 +1259,65 @@ export async function createIssue(input: CreateIssueInput): Promise<void> {
       input.assigneeUserId,
     ].filter((id): id is number => typeof id === "number" && id > 0),
   });
+}
+
+export async function reverseIssueStatus(issueId: number): Promise<IssueStatus> {
+  const currentUser = await requireSessionUser();
+
+  const rows = await db
+    .select({
+      id: issue.id,
+      status: issue.status,
+      title: issue.title,
+      assigneeUserId: issue.assigneeUserId,
+      createdByUserId: issue.createdByUserId,
+    })
+    .from(issue)
+    .where(and(eq(issue.id, issueId), isNull(issue.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Issue not found.");
+  }
+
+  const prevStatus = PREV_ISSUE_STATUS[rows[0].status];
+  if (prevStatus === rows[0].status) {
+    return rows[0].status;
+  }
+
+  await db
+    .update(issue)
+    .set({
+      status: prevStatus,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(issue.id, issueId));
+
+  await dispatchEntityNotification({
+    entity: {
+      type: "issue",
+      id: issueId,
+      creatorUserId: rows[0].createdByUserId,
+      assigneeUserId: rows[0].assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "issue_activity",
+      type: "issue_status_changed",
+      title: `Issue status updated: ${rows[0].title}`,
+      body: `${currentUser.name ?? "Someone"} moved this issue back to ${prevStatus.replace("_", " ")}.`,
+      href: `/issues?issueId=${issueId}`,
+      sourceType: "issue",
+      sourceId: issueId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      rows[0].createdByUserId,
+      rows[0].assigneeUserId,
+    ].filter((id): id is number => typeof id === "number" && id > 0),
+  });
+
+  return prevStatus;
 }
 
 export async function advanceIssueStatus(issueId: number): Promise<IssueStatus> {

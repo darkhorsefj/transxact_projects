@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactElement } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { FiArchive, FiEdit2, FiEye, FiEyeOff, FiPlus } from "react-icons/fi";
+import { FiArchive, FiEdit2, FiEye, FiEyeOff, FiPlus, FiRotateCcw, FiX } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
 import { FormStatus } from "@/app/ui/formStatus";
@@ -14,8 +15,10 @@ import { useSseRefresh } from "@/app/ui/useSseRefresh";
 import {
   archiveProject,
   createProject,
+  restoreProject,
   setProjectFollow,
   updateProject,
+  listArchivedProjects,
   type ProjectWorkflowItem,
 } from "@/services/workflow.service";
 
@@ -25,23 +28,14 @@ interface ProjectsWorkflowViewProps {
 
 function formatDate(isoDate: string): string {
   const parsedDate = new Date(isoDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "Unknown";
-  }
-
+  if (Number.isNaN(parsedDate.getTime())) return "Unknown";
   return parsedDate.toLocaleDateString();
 }
 
 function validateProjectName(rawProjectName: string): string | undefined {
   const normalizedName = rawProjectName.trim().replace(/\s+/g, " ");
-  if (!normalizedName) {
-    return "Project name is required.";
-  }
-
-  if (normalizedName.length < 3) {
-    return "Project name must be at least 3 characters.";
-  }
-
+  if (!normalizedName) return "Project name is required.";
+  if (normalizedName.length < 3) return "Project name must be at least 3 characters.";
   return undefined;
 }
 
@@ -59,6 +53,11 @@ export default function ProjectsWorkflowView({
   const [editProjectName, setEditProjectName] = useState("");
   const [isSavingEditId, setIsSavingEditId] = useState<number | null>(null);
   const [status, setStatus] = useState<FormStatus | null>(null);
+  const [confirmArchiveId, setConfirmArchiveId] = useState<number | null>(null);
+  const [archivedProjects, setArchivedProjects] = useState<ProjectWorkflowItem[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [loadingArchived, setLoadingArchived] = useState(false);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
 
   const summary = useMemo(() => {
     return projects.reduce(
@@ -87,8 +86,7 @@ export default function ProjectsWorkflowView({
       setIsModalOpen(false);
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to create project.";
+      const message = error instanceof Error ? error.message : "Unable to create project.";
       setStatus({ tone: "error", message });
       toast.error(message);
     } finally {
@@ -96,21 +94,14 @@ export default function ProjectsWorkflowView({
     }
   };
 
-  const handleToggleFollow = async (
-    projectId: number,
-    follow: boolean,
-  ): Promise<void> => {
+  const handleToggleFollow = async (projectId: number, follow: boolean): Promise<void> => {
     setIsTogglingFollowId(projectId);
     try {
       await setProjectFollow(projectId, follow);
-      setStatus({
-        tone: "success",
-        message: follow ? "Project followed." : "Project unfollowed.",
-      });
+      setStatus({ tone: "success", message: follow ? "Project followed." : "Project unfollowed." });
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to update follow state.";
+      const message = error instanceof Error ? error.message : "Unable to update follow state.";
       setStatus({ tone: "error", message });
       toast.error(message);
     } finally {
@@ -118,23 +109,55 @@ export default function ProjectsWorkflowView({
     }
   };
 
-  const handleArchiveProject = async (projectId: number): Promise<void> => {
+  const handleArchiveRequest = (projectId: number): void => {
+    setConfirmArchiveId(projectId);
+  };
+
+  const handleArchiveConfirm = async (): Promise<void> => {
+    if (confirmArchiveId === null) return;
+    const projectId = confirmArchiveId;
+    setConfirmArchiveId(null);
     setIsArchivingId(projectId);
     try {
       await archiveProject(projectId);
-      setStatus({
-        tone: "success",
-        message: "Project archived.",
-      });
+      setStatus({ tone: "success", message: "Project archived." });
       toast.success("Project archived");
       router.refresh();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to archive project.";
+      const message = error instanceof Error ? error.message : "Unable to archive project.";
       setStatus({ tone: "error", message });
       toast.error(message);
     } finally {
       setIsArchivingId(null);
+    }
+  };
+
+  const handleShowArchived = async (): Promise<void> => {
+    setShowArchived(true);
+    setLoadingArchived(true);
+    try {
+      const archived = await listArchivedProjects();
+      setArchivedProjects(archived);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to load archived projects.";
+      toast.error(message);
+    } finally {
+      setLoadingArchived(false);
+    }
+  };
+
+  const handleRestoreProject = async (projectId: number): Promise<void> => {
+    setRestoringId(projectId);
+    try {
+      await restoreProject(projectId);
+      toast.success("Project restored");
+      setArchivedProjects((prev) => prev.filter((p) => p.id !== projectId));
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to restore project.";
+      toast.error(message);
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -192,6 +215,13 @@ export default function ProjectsWorkflowView({
           <h2>Project workflow board</h2>
           <div className="card-controls">
             <AppButton
+              onClick={handleShowArchived}
+              variant="ghost"
+              startIcon={<FiArchive aria-hidden="true" />}
+            >
+              Archived
+            </AppButton>
+            <AppButton
               onClick={() => setIsModalOpen(true)}
               startIcon={<FiPlus aria-hidden="true" />}
             >
@@ -214,10 +244,7 @@ export default function ProjectsWorkflowView({
             <tbody>
               {projects.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="empty-row"
-                  >
+                  <td colSpan={5} className="empty-row">
                     No projects yet.
                   </td>
                 </tr>
@@ -253,7 +280,9 @@ export default function ProjectsWorkflowView({
                         </div>
                       ) : (
                         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                          <span>{item.name}</span>
+                          <Link href="/tasks" className="text-link" style={{ fontSize: "0.82rem" }}>
+                            {item.name}
+                          </Link>
                           <button
                             onClick={() => handleStartEditProject(item)}
                             className="text-link-button"
@@ -286,7 +315,7 @@ export default function ProjectsWorkflowView({
                         </AppButton>
                         <AppButton
                           variant="secondary"
-                          onClick={() => handleArchiveProject(item.id)}
+                          onClick={() => handleArchiveRequest(item.id)}
                           isLoading={isArchivingId === item.id}
                           loadingLabel="Archiving..."
                           startIcon={<FiArchive aria-hidden="true" />}
@@ -302,6 +331,59 @@ export default function ProjectsWorkflowView({
           </table>
         </div>
       </section>
+
+      {showArchived && (
+        <section className="card">
+          <div className="card-header">
+            <h2>Archived projects</h2>
+            <AppButton
+              variant="ghost"
+              onClick={() => setShowArchived(false)}
+              startIcon={<FiX aria-hidden="true" />}
+            >
+              Close
+            </AppButton>
+          </div>
+
+          {loadingArchived ? (
+            <p className="empty-row" style={{ padding: "1rem" }}>Loading...</p>
+          ) : archivedProjects.length === 0 ? (
+            <p className="empty-row" style={{ padding: "1rem" }}>No archived projects.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Project</th>
+                    <th scope="col">Created</th>
+                    <th scope="col">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {archivedProjects.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.name}</td>
+                      <td>{formatDate(item.createdAt)}</td>
+                      <td>
+                        <AppButton
+                          variant="secondary"
+                          onClick={() => handleRestoreProject(item.id)}
+                          isLoading={restoringId === item.id}
+                          loadingLabel="Restoring..."
+                          startIcon={<FiRotateCcw aria-hidden="true" />}
+                        >
+                          Restore
+                        </AppButton>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       <Modal
         isOpen={isModalOpen}
         onClose={() => {
@@ -319,9 +401,7 @@ export default function ProjectsWorkflowView({
             value={projectName}
             onChange={(event) => {
               setProjectName(event.target.value);
-              if (status?.tone === "error") {
-                setStatus(null);
-              }
+              if (status?.tone === "error") setStatus(null);
             }}
             disabled={isCreating}
             required
@@ -340,6 +420,27 @@ export default function ProjectsWorkflowView({
           message={status?.message ?? null}
         />
       </Modal>
+
+      {/* Archive confirmation dialog */}
+      {confirmArchiveId !== null && (
+        <div className="confirm-overlay" onClick={() => setConfirmArchiveId(null)}>
+          <div className="confirm-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>Archive project</h3>
+            <p>
+              This will hide the project and its tasks/issues from the active workflow.
+              You can restore it from the archived list later.
+            </p>
+            <div className="confirm-actions">
+              <AppButton variant="ghost" onClick={() => setConfirmArchiveId(null)}>
+                Cancel
+              </AppButton>
+              <AppButton variant="primary" onClick={() => void handleArchiveConfirm()}>
+                Archive
+              </AppButton>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

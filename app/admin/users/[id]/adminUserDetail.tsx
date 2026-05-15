@@ -6,6 +6,7 @@ import Link from "next/link";
 import { FiArrowLeft, FiSave } from "react-icons/fi";
 import { toast } from "sonner";
 import AppButton from "@/app/ui/appButton";
+import { Loading } from "@/app/ui/loading";
 import { statusBadgeMap, roleBadgeMap } from "@/app/ui/formStatus";
 
 interface User {
@@ -140,14 +141,7 @@ export function AdminUserDetail({ userId }: { userId: number }) {
   };
 
   if (loading) {
-    return (
-      <section className="workflow-stack">
-        <div className="card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
-          <div className="loading-spinner"></div>
-          <p className="empty-row">Loading user details...</p>
-        </div>
-      </section>
-    );
+    return <Loading label="Loading user details..." />;
   }
 
   if (!user) {
