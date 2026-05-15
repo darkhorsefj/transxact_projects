@@ -197,6 +197,7 @@ a {
 }
 
 .theme-toggle,
+.topbar-icon-btn,
 .inbox-link,
 .notification-bell-button,
 .sort-button {
@@ -222,6 +223,7 @@ a {
 }
 
 .theme-toggle:hover,
+.topbar-icon-btn:hover,
 .inbox-link:hover,
 .notification-bell-button:hover,
 .sort-button:hover {

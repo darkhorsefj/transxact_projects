@@ -15,6 +15,7 @@ import {
   FiHome,
   FiMessageSquare,
   FiShield,
+  FiUser,
 } from "react-icons/fi";
 import type { IconType } from "react-icons";
 
@@ -40,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/issues", label: "Issues", icon: FiAlertTriangle },
   { href: "/messages", label: "Messages", icon: FiMessageSquare },
   { href: "/notifications", label: "Notifications", icon: FiBell },
+  { href: "/profile", label: "Profile", icon: FiUser },
 ];
 
 function resolvePageMeta(pathname: string): PageMeta {
@@ -81,6 +83,10 @@ function resolvePageMeta(pathname: string): PageMeta {
 
   if (pathname.startsWith("/auth/register")) {
     return { title: "Complete account setup", icon: FiShield };
+  }
+
+  if (pathname.startsWith("/profile")) {
+    return { title: "Profile", icon: FiUser };
   }
 
   return { title: "Transxact Projects", icon: FiHome };
@@ -157,6 +163,9 @@ export default function AppFrame({ children }: AppFrameProps): ReactElement {
           </div>
           <div className="topbar-actions">
             <InboxControls />
+            <Link href="/profile" className="topbar-icon-btn" aria-label="Profile">
+              <FiUser aria-hidden="true" />
+            </Link>
             <LogoutButton />
             <ThemeToggle />
           </div>
