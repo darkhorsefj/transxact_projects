@@ -74,9 +74,9 @@ export default function ThemeToggle(): ReactElement {
       className="theme-toggle"
       onClick={handleToggle}
       aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+      title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
     >
-      {theme === "light" ? <FiMoon aria-hidden="true" /> : <FiSun aria-hidden="true" />}
-      <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>
+      {theme === "light" ? <FiMoon size={15} aria-hidden="true" /> : <FiSun size={15} aria-hidden="true" />}
     </button>
   );
 }

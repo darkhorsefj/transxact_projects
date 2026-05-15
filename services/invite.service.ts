@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import db, { ensureDbSchema } from "@/db/connection";
 import { auditLog, invite, type UserRole, type AuditLogAction, user } from "@/db/schema";
 import { createUnifiedEmailContent, sendEmail } from "./email.service";
+import { normalizeEmail } from "@/lib/utils";
 
 const INVITE_EXPIRY_HOURS = 72;
 
@@ -17,10 +18,6 @@ interface CreateInviteInput {
 interface AcceptInviteInput {
   token: string;
   name: string;
-}
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
 }
 
 function inviteLink(token: string): string {

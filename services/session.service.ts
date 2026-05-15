@@ -4,8 +4,7 @@ import { type UserRole, type UserStatus, user, userSession } from "@/db/schema";
 import { getCookie } from "./cookies.service";
 import { verifyJWT } from "./jwt.service";
 import { and, eq, gt } from "drizzle-orm";
-
-const AUTH_COOKIE_NAME = "transxact_project_auth_token";
+import { AUTH_COOKIE_NAME } from "@/lib/constants";
 
 export interface SessionUser {
   id: number;

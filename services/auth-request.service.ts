@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { verifyJWT } from "./jwt.service";
-
-const AUTH_COOKIE_NAME = "transxact_project_auth_token";
+import { AUTH_COOKIE_NAME } from "@/lib/constants";
 
 export async function getAdminUserIdFromRequest(request: NextRequest): Promise<number> {
   const cookieHeader = request.headers.get("cookie") || "";

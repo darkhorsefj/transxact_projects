@@ -9,14 +9,10 @@ import { acceptInvite } from "@/services/invite.service";
 import TextField from "@/app/ui/textField";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { FormStatus } from "@/app/ui/formStatus";
 
 interface RegisterFormProps {
   token: string;
-}
-
-interface FormStatus {
-  tone: "success" | "error" | "info";
-  message: string;
 }
 
 function validateName(rawName: string): string | undefined {

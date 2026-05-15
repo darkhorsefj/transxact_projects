@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { redirect } from "next/navigation";
 import ReportsView from "./reportsView";
-import { listAdminMessageReports } from "@/services/message.service";
+import { listAdminMessageReports } from "@/services/report.service";
 
 export const dynamic = "force-dynamic";
 

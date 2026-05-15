@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { FiArrowLeft, FiEdit2, FiTrash2, FiHeart, FiEye, FiPaperclip, FiDownload } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import { useSseRefresh } from "@/app/ui/useSseRefresh";
+import { formatDateTime } from "@/lib/utils";
 import {
   addIssueComment,
   deleteIssueComment,
@@ -20,15 +21,6 @@ import {
 
 interface IssueDetailViewProps {
   issue: IssueDetailItem;
-}
-
-function formatDateTime(isoDate: string): string {
-  const parsedDate = new Date(isoDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "Unknown";
-  }
-
-  return parsedDate.toLocaleString();
 }
 
 function issueStatusLabel(status: IssueDetailItem["status"]): string {

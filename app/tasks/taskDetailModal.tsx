@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { FiExternalLink, FiHeart, FiEye, FiCheckCircle } from "react-icons/fi";
 import Modal from "@/app/ui/modal";
 import AppButton from "@/app/ui/appButton";
+import { formatDateTime, formatDueDate } from "@/lib/utils";
 import {
   getTaskDetailById,
   advanceTaskStatus,
@@ -24,16 +25,6 @@ function taskStatusLabel(status: TaskDetailItem["status"]): string {
   if (status === "not_started") return "Not started";
   if (status === "in_progress") return "In progress";
   return "Completed";
-}
-
-function formatDateTime(isoDate: string): string {
-  const d = new Date(isoDate);
-  return Number.isNaN(d.getTime()) ? "Unknown" : d.toLocaleString();
-}
-
-function formatDueDate(isoDate: string): string {
-  const d = new Date(isoDate);
-  return Number.isNaN(d.getTime()) ? "Unknown" : d.toLocaleDateString();
 }
 
 export default function TaskDetailModal({

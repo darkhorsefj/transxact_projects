@@ -7,9 +7,11 @@ import { toast } from "sonner";
 import { FiCheckSquare, FiEye, FiEyeOff, FiMessageCircle, FiMessageSquare, FiPlus, FiSearch } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { FormStatus } from "@/app/ui/formStatus";
 import Modal from "@/app/ui/modal";
 import TextField from "@/app/ui/textField";
 import { useSseRefresh } from "@/app/ui/useSseRefresh";
+import { formatDueDate } from "@/lib/utils";
 import TaskActionModal from "./taskActionModal";
 import TaskCommentModal from "./taskCommentModal";
 import TaskDetailModal from "./taskDetailModal";
@@ -29,24 +31,10 @@ interface TasksWorkflowViewProps {
   tasks: TaskWorkflowItem[];
 }
 
-interface FormStatus {
-  tone: "success" | "error" | "info";
-  message: string;
-}
-
 function defaultDueOn(): string {
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + 7);
   return dueDate.toISOString().slice(0, 10);
-}
-
-function formatDueDate(isoDate: string): string {
-  const parsedDate = new Date(isoDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "Unknown";
-  }
-
-  return parsedDate.toLocaleDateString();
 }
 
 function isOverdue(isoDate: string): boolean {
@@ -191,10 +179,7 @@ export default function TasksWorkflowView({
     <section className="workflow-stack">
       <section className="card">
         <div className="card-header">
-          <div>
-            <h2>Task workflow board</h2>
-            <p>Advance tasks from not started to completed.</p>
-          </div>
+          <h2>Task workflow board</h2>
           <div className="card-controls">
             <AppButton
               onClick={() => setIsModalOpen(true)}

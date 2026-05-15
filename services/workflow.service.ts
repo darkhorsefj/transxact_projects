@@ -23,14 +23,14 @@ import {
   type AttachmentItem,
 } from "./attachment.service";
 import {
-  createNotifications,
   ensureEntitySubscriptions,
   listUserEntitySubscriptionState,
-  resolveEntityNotificationRecipients,
   toggleEntitySubscription,
-} from "./notification.service";
+} from "./entity-subscription.service";
+import { dispatchEntityNotification, notifyEntityWatchers } from "./entity-notify.service";
 import { publishRealtimeRefresh, publishRealtimeRefreshAll } from "./realtime.service";
 import { requireSessionUser } from "./session.service";
+import { displayName } from "@/lib/utils";
 
 const BACKLOG_PHASE_NAME = "Backlog";
 const MIN_TITLE_LENGTH = 3;
@@ -185,11 +185,6 @@ function parseDueDate(dueOn: string): string {
   }
 
   return dueAt.toISOString();
-}
-
-function displayName(name: string | null, email: string): string {
-  const trimmedName = name?.trim();
-  return trimmedName && trimmedName.length > 0 ? trimmedName : email;
 }
 
 async function requireActiveProject(projectId: number): Promise<void> {
@@ -703,25 +698,25 @@ export async function archiveProject(projectId: number): Promise<void> {
     })
     .where(eq(project.id, projectId));
 
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "project",
-    entityId: projectId,
-    creatorUserId: projectRows[0].createdByUserId,
-    actorUserId: currentUser.id,
+  await dispatchEntityNotification({
+    entity: {
+      type: "project",
+      id: projectId,
+      creatorUserId: projectRows[0].createdByUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "project_activity",
+      type: "project_archived",
+      title: `Project archived: ${projectRows[0].name}`,
+      body: `${currentUser.name ?? "An admin"} archived this project.`,
+      href: "/projects",
+      sourceType: "project",
+      sourceId: projectId,
+      emailDelayMinutes: 0,
+    },
+    globalRefresh: true,
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "project_activity",
-    type: "project_archived",
-    title: `Project archived: ${projectRows[0].name}`,
-    body: `${currentUser.name ?? "An admin"} archived this project.`,
-    href: "/projects",
-    sourceType: "project",
-    sourceId: projectId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefreshAll();
 }
 
 export async function updateProject(projectId: number, name: string): Promise<void> {
@@ -744,25 +739,25 @@ export async function updateProject(projectId: number, name: string): Promise<vo
     .set({ name: normalizedName, updatedAt: nowIso })
     .where(eq(project.id, projectId));
 
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "project",
-    entityId: projectId,
-    creatorUserId: rows[0].createdByUserId,
-    actorUserId: currentUser.id,
+  await dispatchEntityNotification({
+    entity: {
+      type: "project",
+      id: projectId,
+      creatorUserId: rows[0].createdByUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "project_activity",
+      type: "project_updated",
+      title: `Project renamed: ${oldName} → ${normalizedName}`,
+      body: `${currentUser.name ?? "Someone"} renamed this project.`,
+      href: "/projects",
+      sourceType: "project",
+      sourceId: projectId,
+      emailDelayMinutes: 0,
+    },
+    globalRefresh: true,
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "project_activity",
-    type: "project_updated",
-    title: `Project renamed: ${oldName} → ${normalizedName}`,
-    body: `${currentUser.name ?? "Someone"} renamed this project.`,
-    href: "/projects",
-    sourceType: "project",
-    sourceId: projectId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefreshAll();
 }
 
 export async function createTask(input: CreateTaskInput): Promise<void> {
@@ -797,33 +792,29 @@ export async function createTask(input: CreateTaskInput): Promise<void> {
   }
 
   const createdTaskId = insertedRows[0].id;
-  await ensureEntitySubscriptions("task", createdTaskId, [
-    currentUser.id,
-    assigneeUserId,
-  ]);
-
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "task",
-    entityId: createdTaskId,
-    creatorUserId: currentUser.id,
-    assigneeUserId,
-    actorUserId: currentUser.id,
+  const notificationBody = description
+    ? `${description} | Due ${input.dueOn}`
+    : `Due ${input.dueOn}`;
+  await dispatchEntityNotification({
+    entity: {
+      type: "task",
+      id: createdTaskId,
+      creatorUserId: currentUser.id,
+      assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "task_activity",
+      type: "task_created",
+      title: `${currentUser.name ?? "Someone"} created task: ${title}`,
+      body: notificationBody,
+      href: `/tasks?taskId=${createdTaskId}`,
+      sourceType: "task",
+      sourceId: createdTaskId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [currentUser.id, assigneeUserId],
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "task_activity",
-    type: "task_created",
-    title: `${currentUser.name ?? "Someone"} created task: ${title}`,
-    body: description
-      ? `${description} | Due ${input.dueOn}`
-      : `Due ${input.dueOn}`,
-    href: `/tasks?taskId=${createdTaskId}`,
-    sourceType: "task",
-    sourceId: createdTaskId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function advanceTaskStatus(taskId: number): Promise<TaskStatus> {
@@ -858,30 +849,29 @@ export async function advanceTaskStatus(taskId: number): Promise<TaskStatus> {
     })
     .where(eq(task.id, taskId));
 
-  await ensureEntitySubscriptions("task", taskId, [
-    rows[0].createdByUserId,
-    rows[0].assigneeUserId,
-  ]);
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "task",
-    entityId: taskId,
-    creatorUserId: rows[0].createdByUserId,
-    assigneeUserId: rows[0].assigneeUserId,
-    actorUserId: currentUser.id,
+  await dispatchEntityNotification({
+    entity: {
+      type: "task",
+      id: taskId,
+      creatorUserId: rows[0].createdByUserId,
+      assigneeUserId: rows[0].assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "task_activity",
+      type: "task_status_changed",
+      title: `Task status updated: ${rows[0].title}`,
+      body: `${currentUser.name ?? "Someone"} moved this task from ${rows[0].status.replace("_", " ")} to ${nextStatus.replace("_", " ")}.`,
+      href: `/tasks?taskId=${taskId}`,
+      sourceType: "task",
+      sourceId: taskId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      rows[0].createdByUserId,
+      rows[0].assigneeUserId,
+    ],
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "task_activity",
-    type: "task_status_changed",
-    title: `Task status updated: ${rows[0].title}`,
-    body: `${currentUser.name ?? "Someone"} moved this task from ${rows[0].status.replace("_", " ")} to ${nextStatus.replace("_", " ")}.`,
-    href: `/tasks?taskId=${taskId}`,
-    sourceType: "task",
-    sourceId: taskId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefresh([currentUser.id, ...recipients]);
 
   return nextStatus;
 }
@@ -936,30 +926,29 @@ export async function updateTask(
   updates.updatedAt = nowIso;
   await db.update(task).set(updates).where(eq(task.id, taskId));
 
-  await ensureEntitySubscriptions("task", taskId, [
-    rows[0].createdByUserId,
-    fields.assigneeUserId ?? rows[0].assigneeUserId,
-  ]);
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "task",
-    entityId: taskId,
-    creatorUserId: rows[0].createdByUserId,
-    assigneeUserId: rows[0].assigneeUserId,
-    actorUserId: currentUser.id,
+  await dispatchEntityNotification({
+    entity: {
+      type: "task",
+      id: taskId,
+      creatorUserId: rows[0].createdByUserId,
+      assigneeUserId: rows[0].assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "task_activity",
+      type: "task_updated",
+      title: `Task updated: ${rows[0].title}`,
+      body: `${currentUser.name ?? "Someone"} updated ${changed.join(", ")}.`,
+      href: `/tasks?taskId=${taskId}`,
+      sourceType: "task",
+      sourceId: taskId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      rows[0].createdByUserId,
+      fields.assigneeUserId ?? rows[0].assigneeUserId,
+    ],
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "task_activity",
-    type: "task_updated",
-    title: `Task updated: ${rows[0].title}`,
-    body: `${currentUser.name ?? "Someone"} updated ${changed.join(", ")}.`,
-    href: `/tasks?taskId=${taskId}`,
-    sourceType: "task",
-    sourceId: taskId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function addTaskComment(taskId: number, rawCommentBody: string): Promise<void> {
@@ -1001,31 +990,30 @@ export async function addTaskComment(taskId: number, rawCommentBody: string): Pr
     throw new Error("Unable to add comment.");
   }
 
-  await ensureEntitySubscriptions("task", taskId, [
-    currentUser.id,
-    rows[0].createdByUserId,
-    rows[0].assigneeUserId,
-  ]);
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "task",
-    entityId: taskId,
-    creatorUserId: rows[0].createdByUserId,
-    assigneeUserId: rows[0].assigneeUserId,
-    actorUserId: currentUser.id,
+  await dispatchEntityNotification({
+    entity: {
+      type: "task",
+      id: taskId,
+      creatorUserId: rows[0].createdByUserId,
+      assigneeUserId: rows[0].assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "task_activity",
+      type: "task_comment_added",
+      title: `${currentUser.name ?? "Someone"} commented on: ${rows[0].title}`,
+      body,
+      href: `/tasks?taskId=${taskId}`,
+      sourceType: "task",
+      sourceId: taskId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      currentUser.id,
+      rows[0].createdByUserId,
+      rows[0].assigneeUserId,
+    ],
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "task_activity",
-    type: "task_comment_added",
-    title: `${currentUser.name ?? "Someone"} commented on: ${rows[0].title}`,
-    body,
-    href: `/tasks?taskId=${taskId}`,
-    sourceType: "task",
-    sourceId: taskId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function markTaskCommentsRead(taskId: number): Promise<void> {
@@ -1109,30 +1097,30 @@ export async function createIssue(input: CreateIssueInput): Promise<void> {
   }
 
   const createdIssueId = insertedRows[0].id;
-  await ensureEntitySubscriptions("issue", createdIssueId, [
-    currentUser.id,
-    input.assigneeUserId ?? null,
-  ]);
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "issue",
-    entityId: createdIssueId,
-    creatorUserId: currentUser.id,
-    assigneeUserId: input.assigneeUserId ?? null,
-    actorUserId: currentUser.id,
+  const notificationBody = description ?? "";
+  await dispatchEntityNotification({
+    entity: {
+      type: "issue",
+      id: createdIssueId,
+      creatorUserId: currentUser.id,
+      assigneeUserId: input.assigneeUserId ?? undefined,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "issue_activity",
+      type: "issue_created",
+      title: `${currentUser.name ?? "Someone"} created issue: ${title}`,
+      body: notificationBody,
+      href: `/issues?issueId=${createdIssueId}`,
+      sourceType: "issue",
+      sourceId: createdIssueId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      currentUser.id,
+      input.assigneeUserId,
+    ].filter((id): id is number => typeof id === "number" && id > 0),
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "issue_activity",
-    type: "issue_created",
-    title: `${currentUser.name ?? "Someone"} created issue: ${title}`,
-    body: description ?? "",
-    href: `/issues?issueId=${createdIssueId}`,
-    sourceType: "issue",
-    sourceId: createdIssueId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function advanceIssueStatus(issueId: number): Promise<IssueStatus> {
@@ -1167,30 +1155,29 @@ export async function advanceIssueStatus(issueId: number): Promise<IssueStatus> 
     })
     .where(eq(issue.id, issueId));
 
-  await ensureEntitySubscriptions("issue", issueId, [
-    rows[0].createdByUserId,
-    rows[0].assigneeUserId,
-  ]);
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "issue",
-    entityId: issueId,
-    creatorUserId: rows[0].createdByUserId,
-    assigneeUserId: rows[0].assigneeUserId,
-    actorUserId: currentUser.id,
+  await dispatchEntityNotification({
+    entity: {
+      type: "issue",
+      id: issueId,
+      creatorUserId: rows[0].createdByUserId,
+      assigneeUserId: rows[0].assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "issue_activity",
+      type: "issue_status_changed",
+      title: `Issue status updated: ${rows[0].title}`,
+      body: `${currentUser.name ?? "Someone"} moved this issue from ${rows[0].status.replace("_", " ")} to ${nextStatus.replace("_", " ")}.`,
+      href: `/issues?issueId=${issueId}`,
+      sourceType: "issue",
+      sourceId: issueId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      rows[0].createdByUserId,
+      rows[0].assigneeUserId,
+    ].filter((id): id is number => typeof id === "number" && id > 0),
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "issue_activity",
-    type: "issue_status_changed",
-    title: `Issue status updated: ${rows[0].title}`,
-    body: `${currentUser.name ?? "Someone"} moved this issue from ${rows[0].status.replace("_", " ")} to ${nextStatus.replace("_", " ")}.`,
-    href: `/issues?issueId=${issueId}`,
-    sourceType: "issue",
-    sourceId: issueId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefresh([currentUser.id, ...recipients]);
 
   return nextStatus;
 }
@@ -1239,30 +1226,29 @@ export async function updateIssue(
   updates.updatedAt = nowIso;
   await db.update(issue).set(updates).where(eq(issue.id, issueId));
 
-  await ensureEntitySubscriptions("issue", issueId, [
-    rows[0].createdByUserId,
-    fields.assigneeUserId ?? rows[0].assigneeUserId,
-  ]);
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "issue",
-    entityId: issueId,
-    creatorUserId: rows[0].createdByUserId,
-    assigneeUserId: rows[0].assigneeUserId,
-    actorUserId: currentUser.id,
+  await dispatchEntityNotification({
+    entity: {
+      type: "issue",
+      id: issueId,
+      creatorUserId: rows[0].createdByUserId,
+      assigneeUserId: rows[0].assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "issue_activity",
+      type: "issue_updated",
+      title: `Issue updated: ${rows[0].title}`,
+      body: `${currentUser.name ?? "Someone"} updated ${changed.join(", ")}.`,
+      href: `/issues?issueId=${issueId}`,
+      sourceType: "issue",
+      sourceId: issueId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      rows[0].createdByUserId,
+      fields.assigneeUserId ?? rows[0].assigneeUserId,
+    ].filter((id): id is number => typeof id === "number" && id > 0),
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "issue_activity",
-    type: "issue_updated",
-    title: `Issue updated: ${rows[0].title}`,
-    body: `${currentUser.name ?? "Someone"} updated ${changed.join(", ")}.`,
-    href: `/issues?issueId=${issueId}`,
-    sourceType: "issue",
-    sourceId: issueId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function addIssueComment(
@@ -1307,31 +1293,30 @@ export async function addIssueComment(
     throw new Error("Unable to add comment.");
   }
 
-  await ensureEntitySubscriptions("issue", issueId, [
-    currentUser.id,
-    rows[0].createdByUserId,
-    rows[0].assigneeUserId,
-  ]);
-  const recipients = await resolveEntityNotificationRecipients({
-    entityType: "issue",
-    entityId: issueId,
-    creatorUserId: rows[0].createdByUserId,
-    assigneeUserId: rows[0].assigneeUserId,
-    actorUserId: currentUser.id,
+  await dispatchEntityNotification({
+    entity: {
+      type: "issue",
+      id: issueId,
+      creatorUserId: rows[0].createdByUserId,
+      assigneeUserId: rows[0].assigneeUserId,
+    },
+    notification: {
+      actorUserId: currentUser.id,
+      category: "issue_activity",
+      type: "issue_comment_added",
+      title: `${currentUser.name ?? "Someone"} commented on issue: ${rows[0].title}`,
+      body,
+      href: `/issues?issueId=${issueId}`,
+      sourceType: "issue",
+      sourceId: issueId,
+      emailDelayMinutes: 0,
+    },
+    subscribeParticipantIds: [
+      currentUser.id,
+      rows[0].createdByUserId,
+      rows[0].assigneeUserId,
+    ].filter((id): id is number => typeof id === "number" && id > 0),
   });
-  await createNotifications({
-    recipientUserIds: recipients,
-    actorUserId: currentUser.id,
-    category: "issue_activity",
-    type: "issue_comment_added",
-    title: `${currentUser.name ?? "Someone"} commented on issue: ${rows[0].title}`,
-    body,
-    href: `/issues?issueId=${issueId}`,
-    sourceType: "issue",
-    sourceId: issueId,
-    emailDelayMinutes: 0,
-  });
-  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function editTaskComment(
@@ -1373,19 +1358,9 @@ export async function editTaskComment(
 
   const commentRow = rows[0];
   if (commentRow.taskId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "task",
-      entityId: commentRow.taskId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers({ type: "task", id: commentRow.taskId }, currentUser.id);
   } else if (commentRow.issueId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "issue",
-      entityId: commentRow.issueId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers({ type: "issue", id: commentRow.issueId }, currentUser.id);
   }
 }
 
@@ -1424,19 +1399,9 @@ export async function deleteTaskComment(commentId: number): Promise<void> {
 
   const commentRow = rows[0];
   if (commentRow.taskId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "task",
-      entityId: commentRow.taskId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers({ type: "task", id: commentRow.taskId }, currentUser.id);
   } else if (commentRow.issueId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "issue",
-      entityId: commentRow.issueId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers({ type: "issue", id: commentRow.issueId }, currentUser.id);
   }
 }
 
@@ -1479,19 +1444,9 @@ export async function editIssueComment(
 
   const commentRow = rows[0];
   if (commentRow.taskId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "task",
-      entityId: commentRow.taskId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers({ type: "task", id: commentRow.taskId }, currentUser.id);
   } else if (commentRow.issueId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "issue",
-      entityId: commentRow.issueId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers({ type: "issue", id: commentRow.issueId }, currentUser.id);
   }
 }
 
@@ -1530,19 +1485,9 @@ export async function deleteIssueComment(commentId: number): Promise<void> {
 
   const commentRow = rows[0];
   if (commentRow.taskId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "task",
-      entityId: commentRow.taskId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers({ type: "task", id: commentRow.taskId }, currentUser.id);
   } else if (commentRow.issueId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "issue",
-      entityId: commentRow.issueId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers({ type: "issue", id: commentRow.issueId }, currentUser.id);
   }
 }
 

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { FiChevronsRight, FiEye, FiEyeOff, FiPlus } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { FormStatus } from "@/app/ui/formStatus";
 import Modal from "@/app/ui/modal";
 import TextField from "@/app/ui/textField";
 import { useSseRefresh } from "@/app/ui/useSseRefresh";
@@ -26,11 +27,6 @@ interface IssuesWorkflowViewProps {
   tasks: TaskOption[];
   assignees: AssigneeOption[];
   issues: IssueWorkflowItem[];
-}
-
-interface FormStatus {
-  tone: "success" | "error" | "info";
-  message: string;
 }
 
 function issueStatusLabel(status: IssueWorkflowItem["status"]): string {
@@ -174,10 +170,7 @@ export default function IssuesWorkflowView({
     <section className="workflow-stack">
       <section className="card">
         <div className="card-header">
-          <div>
-            <h2>Issues</h2>
-            <p>Manage blockers from open through to closed.</p>
-          </div>
+          <h2>Issues</h2>
           <div className="card-controls">
             <AppButton
               onClick={() => setIsModalOpen(true)}

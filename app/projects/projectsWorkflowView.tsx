@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { FiArchive, FiEdit2, FiEye, FiEyeOff, FiPlus } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { FormStatus } from "@/app/ui/formStatus";
 import Modal from "@/app/ui/modal";
 import TextField from "@/app/ui/textField";
 import { useSseRefresh } from "@/app/ui/useSseRefresh";
@@ -20,11 +21,6 @@ import {
 
 interface ProjectsWorkflowViewProps {
   projects: ProjectWorkflowItem[];
-}
-
-interface FormStatus {
-  tone: "success" | "error" | "info";
-  message: string;
 }
 
 function formatDate(isoDate: string): string {
@@ -193,10 +189,7 @@ export default function ProjectsWorkflowView({
 
       <section className="card">
         <div className="card-header">
-          <div>
-            <h2>Project workflow board</h2>
-            <p>Review project-level load and archive finished workstreams.</p>
-          </div>
+          <h2>Project workflow board</h2>
           <div className="card-controls">
             <AppButton
               onClick={() => setIsModalOpen(true)}

@@ -8,15 +8,11 @@ import { login } from "@/services/auth.service";
 import TextField from "@/app/ui/textField";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { FormStatus } from "@/app/ui/formStatus";
 
 interface EnterCodeFormProps {
   email: string;
   onBack: () => void;
-}
-
-interface FormStatus {
-  tone: "success" | "error" | "info";
-  message: string;
 }
 
 function validateCode(rawCode: string): string | undefined {

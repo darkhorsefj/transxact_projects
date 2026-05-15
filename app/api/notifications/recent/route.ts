@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiError } from "@/lib/api-helpers";
 import { listRecentNotifications } from "@/services/notification.service";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +15,6 @@ export async function GET(request: Request): Promise<Response> {
     const notifications = await listRecentNotifications(resolvedLimit);
     return NextResponse.json({ notifications });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to load notifications.";
-    return NextResponse.json({ error: message }, { status: 401 });
+    return apiError(error);
   }
 }

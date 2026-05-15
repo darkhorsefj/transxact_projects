@@ -151,9 +151,9 @@ export default function InboxControls(): ReactElement {
       <Link
         href="/messages"
         className="inbox-link"
+        title="Messages"
       >
-        <FiMail aria-hidden="true" />
-        <span>Messages</span>
+        <FiMail size={15} aria-hidden="true" />
         {counts.unreadMessageCount > 0 ? (
           <span className="inbox-badge">{counts.unreadMessageCount}</span>
         ) : null}
@@ -169,9 +169,9 @@ export default function InboxControls(): ReactElement {
           }
         }}
         aria-label="Open notifications"
+        title="Notifications"
       >
-        <FiBell aria-hidden="true" />
-        <span>Notifications</span>
+        <FiBell size={15} aria-hidden="true" />
         {counts.unreadNotificationCount > 0 ? (
           <span className="inbox-badge">{counts.unreadNotificationCount}</span>
         ) : null}
@@ -180,16 +180,16 @@ export default function InboxControls(): ReactElement {
       {isOpen ? (
         <div className="notification-dropdown">
           <div className="notification-dropdown-header">
-            <strong className="icon-with-label">
-              <FiBell aria-hidden="true" />
+            <span className="icon-with-label">
+              <FiBell size={14} aria-hidden="true" />
               <span>Notifications</span>
-            </strong>
+            </span>
             <button
               type="button"
               className="text-link-button"
               onClick={() => void markAllRead()}
             >
-              <FiCheck aria-hidden="true" />
+              <FiCheck size={13} aria-hidden="true" />
               Mark all read
             </button>
           </div>
@@ -222,7 +222,7 @@ export default function InboxControls(): ReactElement {
                       className="text-link-button"
                       onClick={() => void markNotificationRead(item.id)}
                     >
-                      <FiCheck aria-hidden="true" />
+                      <FiCheck size={13} aria-hidden="true" />
                       Mark read
                     </button>
                   ) : null}
@@ -235,7 +235,7 @@ export default function InboxControls(): ReactElement {
             className="notification-footer-link"
             onClick={() => setIsOpen(false)}
           >
-            <FiNavigation aria-hidden="true" />
+            <FiNavigation size={13} aria-hidden="true" />
             Open notification center
           </Link>
         </div>

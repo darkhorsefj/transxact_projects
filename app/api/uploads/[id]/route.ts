@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiError } from "@/lib/api-helpers";
 import { readFile } from "node:fs/promises";
 import { getAttachmentById, getFilePath } from "@/services/attachment.service";
 import { requireSessionUser } from "@/services/session.service";
@@ -34,8 +35,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.includes("signed in") ? 401 : message.includes("not found") || message.includes("ENOENT") ? 404 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return apiError(error);
   }
 }

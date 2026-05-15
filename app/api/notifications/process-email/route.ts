@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { processPendingEmailQueueWithWorker } from "@/services/notification.service";
+import { apiError } from "@/lib/api-helpers";
+import { processPendingEmailQueueWithWorker } from "@/services/email-queue.service";
 import { getSessionUserOrNull } from "@/services/session.service";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +15,6 @@ export async function POST(): Promise<Response> {
     const result = await processPendingEmailQueueWithWorker();
     return NextResponse.json(result);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to process email queue.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return apiError(error);
   }
 }

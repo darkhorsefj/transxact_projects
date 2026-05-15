@@ -95,8 +95,8 @@ export default function DashboardView({
 
   const issueStatusMessage =
     overdueTaskCount > 0
-      ? `${overdueTaskCount} ${pluralize(overdueTaskCount, "task is", "tasks are")} overdue. Prioritize high-impact items first.`
-      : "No overdue tasks. Delivery cadence is healthy.";
+      ? `${overdueTaskCount} ${pluralize(overdueTaskCount, "task", "tasks")} overdue`
+      : "All tasks on track";
   const TaskSortIcon = taskSortDirection === "desc" ? FiArrowDown : FiArrowUp;
   const IssueSortIcon = issueSortDirection === "desc" ? FiArrowDown : FiArrowUp;
 
@@ -124,10 +124,7 @@ export default function DashboardView({
 
       <section className="card">
         <div className="card-header">
-          <div>
-            <h2>Open tasks by assignee</h2>
-            <p>Quickly identify workload distribution and bottlenecks.</p>
-          </div>
+          <h2>Open tasks by assignee</h2>
           <div className="card-controls">
             <input
               type="search"
@@ -190,7 +187,6 @@ export default function DashboardView({
         <div className="card-header">
           <div>
             <h2>Open issues by project</h2>
-            <p>Track where issue resolution load is building.</p>
           </div>
           <div className="card-controls">
             <input

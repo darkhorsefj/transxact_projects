@@ -7,16 +7,13 @@ import { type UserRole, user, userSession } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { setCookie, deleteCookie, getCookie } from "./cookies.service";
 import { generateJWT } from "./jwt.service";
+import { normalizeEmail } from "@/lib/utils";
+import { AUTH_COOKIE_NAME } from "@/lib/constants";
 
-const AUTH_COOKIE_NAME = "transxact_project_auth_token";
 const LOGIN_CODE_TTL_MINUTES = 10;
 const LOGIN_CODE_COOLDOWN_SECONDS = 60;
 const LOGIN_CODE_MAX_ATTEMPTS = 5;
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
 
 function generateLoginCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();

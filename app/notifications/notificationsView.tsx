@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { FiCheckCircle, FiExternalLink } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { formatDateTime } from "@/lib/utils";
 import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
@@ -24,15 +25,6 @@ interface NotificationsViewProps {
 interface StatusState {
   tone: "success" | "error" | "info";
   message: string;
-}
-
-function formatDateTime(isoValue: string): string {
-  const dateValue = new Date(isoValue);
-  if (Number.isNaN(dateValue.getTime())) {
-    return "Unknown";
-  }
-
-  return dateValue.toLocaleString();
 }
 
 export default function NotificationsView({

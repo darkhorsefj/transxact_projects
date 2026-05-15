@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiError } from "@/lib/api-helpers";
 import { markNotificationAsRead } from "@/services/notification.service";
 
 export async function POST(request: Request): Promise<Response> {
@@ -15,8 +16,6 @@ export async function POST(request: Request): Promise<Response> {
     await markNotificationAsRead(notificationId);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to mark notification as read.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return apiError(error);
   }
 }

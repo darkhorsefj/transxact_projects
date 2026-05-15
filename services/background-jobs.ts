@@ -10,7 +10,7 @@ export function startEmailQueueProcessor(): void {
     try {
       const [{ processPendingEmailQueue }, { notifyOverdueTasks }] =
         await Promise.all([
-          import("./notification.service"),
+          import("./email-queue.service"),
           import("./notification.service"),
         ]);
 

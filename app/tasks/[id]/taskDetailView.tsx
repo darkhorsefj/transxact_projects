@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { FiArrowLeft, FiEdit2, FiTrash2, FiHeart, FiEye, FiPaperclip, FiDownload } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import { useSseRefresh } from "@/app/ui/useSseRefresh";
+import { formatDateTime, formatDueDate, getInitials, getAvatarColorByLabel } from "@/lib/utils";
+import { AVATAR_COLORS } from "@/lib/constants";
 import {
   createTaskAction,
   deleteTaskAction,
@@ -27,24 +29,6 @@ interface TaskDetailViewProps {
   hideBackLink?: boolean;
 }
 
-function formatDateTime(isoDate: string): string {
-  const parsedDate = new Date(isoDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "Unknown";
-  }
-
-  return parsedDate.toLocaleString();
-}
-
-function formatDueDate(isoDate: string): string {
-  const parsedDate = new Date(isoDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "Unknown";
-  }
-
-  return parsedDate.toLocaleDateString();
-}
-
 function taskStatusLabel(status: TaskDetailItem["status"]): string {
   if (status === "not_started") {
     return "Not started";
@@ -55,33 +39,6 @@ function taskStatusLabel(status: TaskDetailItem["status"]): string {
   }
 
   return "Completed";
-}
-
-const AVATAR_COLORS = [
-  "var(--avatar-0)",
-  "var(--avatar-1)",
-  "var(--avatar-2)",
-  "var(--avatar-3)",
-  "var(--avatar-4)",
-  "var(--avatar-5)",
-  "var(--avatar-6)",
-  "var(--avatar-7)",
-];
-
-function getInitials(label: string): string {
-  const parts = label.split(/[\s.@_-]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return label.slice(0, 2).toUpperCase();
-}
-
-function getAvatarColor(label: string): string {
-  let hash = 0;
-  for (let i = 0; i < label.length; i++) {
-    hash = label.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
 export default function TaskDetailView({ task, hideBackLink = false }: TaskDetailViewProps): ReactElement {
@@ -448,7 +405,7 @@ export default function TaskDetailView({ task, hideBackLink = false }: TaskDetai
                 <div key={comment.id} className="slack-message">
                   <div
                     className="slack-avatar"
-                    style={{ background: getAvatarColor(comment.authorLabel) }}
+                    style={{ background: getAvatarColorByLabel(comment.authorLabel, AVATAR_COLORS) }}
                   >
                     {getInitials(comment.authorLabel)}
                   </div>

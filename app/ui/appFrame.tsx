@@ -118,12 +118,6 @@ export default function AppFrame({ children }: AppFrameProps): ReactElement {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Link
-          href="/"
-          className="brand-link"
-        >
-          Transxact Projects
-        </Link>
         <nav
           className="side-nav"
           aria-label="Primary navigation"
@@ -137,12 +131,13 @@ export default function AppFrame({ children }: AppFrameProps): ReactElement {
                 key={item.href}
                 href={item.href}
                 className={cx("side-link", isActive && "is-active")}
+                title={item.label}
               >
                 <NavIcon
                   className="side-link-icon"
+                  size={18}
                   aria-hidden="true"
                 />
-                <span>{item.label}</span>
               </Link>
             );
           })}
@@ -156,6 +151,7 @@ export default function AppFrame({ children }: AppFrameProps): ReactElement {
             <h1 className="page-title">
               <PageIcon
                 className="page-title-icon"
+                size={16}
                 aria-hidden="true"
               />
               <span>{pageMeta.title}</span>
@@ -163,8 +159,8 @@ export default function AppFrame({ children }: AppFrameProps): ReactElement {
           </div>
           <div className="topbar-actions">
             <InboxControls />
-            <Link href="/profile" className="topbar-icon-btn" aria-label="Profile">
-              <FiUser aria-hidden="true" />
+            <Link href="/profile" className="topbar-icon-btn" aria-label="Profile" title="Profile">
+              <FiUser size={15} aria-hidden="true" />
             </Link>
             <LogoutButton />
             <ThemeToggle />

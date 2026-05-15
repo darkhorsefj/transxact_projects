@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiError } from "@/lib/api-helpers";
 import { logout } from "@/services/auth.service";
 
 export async function POST(): Promise<Response> {
@@ -6,7 +7,6 @@ export async function POST(): Promise<Response> {
     await logout();
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to logout.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return apiError(error);
   }
 }

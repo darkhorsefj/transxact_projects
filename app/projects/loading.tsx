@@ -1,12 +1,6 @@
 import type { ReactElement } from "react";
+import { Loading } from "@/app/ui/loading";
 
-export default function Loading(): ReactElement {
-  return (
-    <section className="workflow-stack">
-      <div className="card" style={{ textAlign: "center", padding: "3rem 1rem" }}>
-        <div className="loading-spinner" />
-        <p className="empty-row">Loading projects...</p>
-      </div>
-    </section>
-  );
+export default function LoadingPage(): ReactElement {
+  return <Loading label="Loading projects..." />;
 }

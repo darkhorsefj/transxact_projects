@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import AppButton from "@/app/ui/appButton";
 import TextField from "@/app/ui/textField";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { FormStatus } from "@/app/ui/formStatus";
+import { formatDateTime } from "@/lib/utils";
 import { getProfile, updateProfileName } from "@/services/profile.service";
 import type { ProfileUser } from "@/services/profile.service";
 
@@ -19,11 +21,6 @@ const statusBadgeStyle: Record<string, React.CSSProperties> = {
   inactive: { background: "var(--error-soft)", color: "var(--error)" },
   pending: { background: "var(--info-soft)", color: "var(--info)" },
 };
-
-interface FormStatus {
-  tone: "success" | "error" | "info";
-  message: string;
-}
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileUser | null>(null);
@@ -73,8 +70,8 @@ export default function ProfilePage() {
       } finally {
         setLoading(false);
       }
+      await fetchSessions();
     })();
-    fetchSessions();
   }, [fetchSessions]);
 
   const handleRevokeSession = async (sessionId: number): Promise<void> => {
@@ -94,11 +91,6 @@ export default function ProfilePage() {
       setRevokingId(null);
     }
   };
-
-  function formatDateTime(isoDate: string): string {
-    const d = new Date(isoDate);
-    return Number.isNaN(d.getTime()) ? "Unknown" : d.toLocaleString();
-  }
 
   const handleSave = async () => {
     const trimmed = name.trim();

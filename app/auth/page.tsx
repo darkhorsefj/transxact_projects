@@ -9,11 +9,7 @@ import { requestLoginCode } from "@/services/auth.service";
 import TextField from "@/app/ui/textField";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
-
-interface FormStatus {
-  tone: "success" | "error" | "info";
-  message: string;
-}
+import { FormStatus } from "@/app/ui/formStatus";
 
 function validateEmail(rawEmail: string): string | undefined {
   const normalizedEmail = rawEmail.trim().toLowerCase();

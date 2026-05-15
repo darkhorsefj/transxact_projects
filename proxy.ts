@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-
-const AUTH_COOKIE_NAME = "transxact_project_auth_token";
+import { AUTH_COOKIE_NAME } from "@/lib/constants";
 
 const authRoutes = ["/auth", "/auth/register"];
 

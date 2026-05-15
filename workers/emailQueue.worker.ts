@@ -7,13 +7,8 @@ import {
   notificationDeliveryLog,
 } from "../db/schema";
 import { sendEmail } from "../services/email.service";
-
-const MAX_EMAIL_ATTEMPTS = 3;
-const EMAIL_RETRY_MINUTES = [5, 15, 30];
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
+import { nowIso } from "../lib/utils";
+import { MAX_EMAIL_ATTEMPTS, EMAIL_RETRY_MINUTES } from "../lib/constants";
 
 async function processQueue(limit: number): Promise<{
   sent: number;

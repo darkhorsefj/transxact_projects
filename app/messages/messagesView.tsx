@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
+import { useSseRefresh } from "@/app/ui/useSseRefresh";
 import {
   FiArchive,
   FiCheck,
@@ -20,14 +21,14 @@ import {
 } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { getInitials, getAvatarColorByUserId } from "@/lib/utils";
+import { MESSAGE_AVATAR_COLORS } from "@/lib/constants";
 import {
   blockUserForMessaging,
   createOrOpenConversation,
   deleteDirectMessage,
   editDirectMessage,
   markConversationRead,
-  reportConversation,
-  reportMessage,
   sendDirectMessage,
   setConversationArchived,
   type ConversationDetail,
@@ -35,6 +36,7 @@ import {
   type UserOption,
   unblockUserForMessaging,
 } from "@/services/message.service";
+import { reportConversation, reportMessage } from "@/services/report.service";
 
 interface MessagesViewProps {
   currentUserId: number;
@@ -47,20 +49,6 @@ interface MessagesViewProps {
 interface StatusState {
   tone: "success" | "error" | "info";
   message: string;
-}
-
-const AVATAR_COLORS = [
-  "#5865F2", "#ED4245", "#57F287", "#FEE75C", "#EB459E",
-  "#FF73FA", "#00B0F4", "#4D3CFF", "#95EFB4", "#F8B4B4",
-  "#A3D5FF", "#F9A8D4", "#6EE7B7", "#FCD34D", "#A78BFA",
-];
-
-function getAvatarColor(userId: number): string {
-  return AVATAR_COLORS[Math.abs(userId) % AVATAR_COLORS.length];
-}
-
-function getInitials(label: string): string {
-  return label.charAt(0).toUpperCase();
 }
 
 function formatTime(isoValue: string): string {
@@ -139,17 +127,7 @@ export default function MessagesView({
     }
   }, [hasConversation]);
 
-  useEffect(() => {
-    const eventSource = new EventSource("/api/realtime/stream", { withCredentials: true });
-    const handleRefresh = (): void => {
-      router.refresh();
-    };
-    eventSource.addEventListener("refresh", handleRefresh);
-    return () => {
-      eventSource.removeEventListener("refresh", handleRefresh);
-      eventSource.close();
-    };
-  }, [router]);
+  useSseRefresh();
 
   const canSendInConversation = useMemo(() => {
     if (!activeConversation) {
@@ -414,7 +392,7 @@ export default function MessagesView({
               >
                 <div
                   className="discord-conv-avatar"
-                  style={{ backgroundColor: getAvatarColor(item.participantUserId) }}
+                  style={{ backgroundColor: getAvatarColorByUserId(item.participantUserId, MESSAGE_AVATAR_COLORS) }}
                 >
                   {getInitials(item.participantLabel)}
                 </div>

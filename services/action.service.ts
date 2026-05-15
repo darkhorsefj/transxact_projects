@@ -2,13 +2,8 @@
 
 import { and, asc, eq, isNull } from "drizzle-orm";
 import db, { ensureDbSchema } from "@/db/connection";
-import { action, phase, task, user, type NotificationSourceType } from "@/db/schema";
-import {
-  createNotifications,
-  ensureEntitySubscriptions,
-  resolveEntityNotificationRecipients,
-} from "./notification.service";
-import { publishRealtimeRefresh } from "./realtime.service";
+import { action, phase, task, user } from "@/db/schema";
+import { dispatchEntityNotification, notifyEntityWatchers } from "./entity-notify.service";
 import { requireSessionUser } from "./session.service";
 
 const MIN_ACTION_NAME_LENGTH = 2;
@@ -106,33 +101,33 @@ export async function createTaskAction(
 
   if (taskRows.length > 0) {
     const taskData = taskRows[0];
-    await ensureEntitySubscriptions("task", taskId, [
-      currentUser.id,
-      taskData.createdByUserId,
-      taskData.assigneeUserId,
-    ]);
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "task",
-      entityId: taskId,
-      creatorUserId: taskData.createdByUserId,
-      assigneeUserId: taskData.assigneeUserId,
-      actorUserId: currentUser.id,
+    const bodyText = description
+      ? `"${normalizedName}": ${description} (in task "${taskData.title}")`
+      : `"${normalizedName}" added to task "${taskData.title}"`;
+    await dispatchEntityNotification({
+      entity: {
+        type: "task",
+        id: taskId,
+        creatorUserId: taskData.createdByUserId,
+        assigneeUserId: taskData.assigneeUserId,
+      },
+      notification: {
+        actorUserId: currentUser.id,
+        category: "task_activity",
+        type: "action_created",
+        title: `${currentUser.name ?? "Someone"} added action: ${normalizedName}`,
+        body: bodyText,
+        href: `/tasks?taskId=${taskId}`,
+        sourceType: "action",
+        sourceId: insertedRows[0].id,
+        emailDelayMinutes: 0,
+      },
+      subscribeParticipantIds: [
+        currentUser.id,
+        taskData.createdByUserId,
+        taskData.assigneeUserId,
+      ],
     });
-    await createNotifications({
-      recipientUserIds: recipients,
-      actorUserId: currentUser.id,
-      category: "task_activity",
-      type: "action_created",
-      title: `${currentUser.name ?? "Someone"} added action: ${normalizedName}`,
-      body: description
-        ? `"${normalizedName}": ${description} (in task "${taskData.title}")`
-        : `"${normalizedName}" added to task "${taskData.title}"`,
-      href: `/tasks?taskId=${taskId}`,
-      sourceType: "action" as NotificationSourceType,
-      sourceId: insertedRows[0].id,
-      emailDelayMinutes: 0,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
   }
 }
 
@@ -166,12 +161,10 @@ export async function deleteTaskAction(actionId: number): Promise<void> {
 
   const actionRow = rows[0];
   if (actionRow.taskId) {
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "task",
-      entityId: actionRow.taskId,
-      actorUserId: currentUser.id,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
+    await notifyEntityWatchers(
+      { type: "task", id: actionRow.taskId },
+      currentUser.id,
+    );
   }
 }
 
@@ -239,30 +232,29 @@ export async function updateActionStatus(actionId: number, status: "pending" | "
 
   if (taskRows.length > 0) {
     const taskData = taskRows[0];
-    await ensureEntitySubscriptions("task", taskId, [
-      currentUser.id,
-      taskData.createdByUserId,
-      taskData.assigneeUserId,
-    ]);
-    const recipients = await resolveEntityNotificationRecipients({
-      entityType: "task",
-      entityId: taskId,
-      creatorUserId: taskData.createdByUserId,
-      assigneeUserId: taskData.assigneeUserId,
-      actorUserId: currentUser.id,
+    await dispatchEntityNotification({
+      entity: {
+        type: "task",
+        id: taskId,
+        creatorUserId: taskData.createdByUserId,
+        assigneeUserId: taskData.assigneeUserId,
+      },
+      notification: {
+        actorUserId: currentUser.id,
+        category: "task_activity",
+        type: "action_status_changed",
+        title: `Action ${status}: ${rows[0].name}`,
+        body: `${currentUser.name ?? "Someone"} marked action "${rows[0].name}" as ${status} in task "${taskData.title}".`,
+        href: `/tasks?taskId=${taskId}`,
+        sourceType: "action",
+        sourceId: actionId,
+        emailDelayMinutes: 0,
+      },
+      subscribeParticipantIds: [
+        currentUser.id,
+        taskData.createdByUserId,
+        taskData.assigneeUserId,
+      ],
     });
-    await createNotifications({
-      recipientUserIds: recipients,
-      actorUserId: currentUser.id,
-      category: "task_activity",
-      type: "action_status_changed",
-      title: `Action ${status}: ${rows[0].name}`,
-      body: `${currentUser.name ?? "Someone"} marked action "${rows[0].name}" as ${status} in task "${taskData.title}".`,
-      href: `/tasks?taskId=${taskId}`,
-      sourceType: "action" as NotificationSourceType,
-      sourceId: actionId,
-      emailDelayMinutes: 0,
-    });
-    publishRealtimeRefresh([currentUser.id, ...recipients]);
   }
 }

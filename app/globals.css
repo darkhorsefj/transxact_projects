@@ -17,7 +17,7 @@
   --info-soft: #dbeafe;
   --border: #d3ddee;
   --border-strong: #bbc9df;
-  --shadow-soft: 0 18px 40px -30px rgb(15 23 42 / 55%);
+  --shadow-soft: 0 4px 12px -6px rgb(15 23 42 / 25%);
   --avatar-0: var(--brand);
   --avatar-1: #e07c3c;
   --avatar-2: #4c9a5e;
@@ -47,7 +47,7 @@
   --info-soft: #23385f;
   --border: #2e4067;
   --border-strong: #405584;
-  --shadow-soft: 0 18px 40px -26px rgb(2 6 23 / 80%);
+  --shadow-soft: 0 4px 12px -6px rgb(2 6 23 / 60%);
   --avatar-0: var(--brand);
   --avatar-1: #f59e5c;
   --avatar-2: #6cbd7e;
@@ -76,7 +76,8 @@ body.app-body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-family: var(--font-geist-sans), "Segoe UI", system-ui, sans-serif;
-  line-height: 1.45;
+  font-size: 0.8125rem;
+  line-height: 1.4;
 }
 
 h1,
@@ -93,12 +94,12 @@ a {
 
 :where(button, input, a):focus-visible {
   outline: 2px solid var(--brand);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 
 .app-shell {
   display: grid;
-  grid-template-columns: 16rem minmax(0, 1fr);
+  grid-template-columns: 3.25rem minmax(0, 1fr);
   min-height: 100dvh;
 }
 
@@ -108,14 +109,15 @@ a {
   display: flex;
   height: 100dvh;
   flex-direction: column;
-  gap: 1.5rem;
+  align-items: center;
+  gap: 0.6rem;
   border-right: 1px solid var(--border);
   background: var(--surface);
-  padding: 1.5rem 1rem;
+  padding: 0.5rem 0.35rem;
 }
 
 .brand-link {
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
@@ -123,21 +125,22 @@ a {
 .side-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 .side-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  border-radius: 0.625rem;
-  padding: 0.6rem 0.75rem;
+  justify-content: center;
+  border-radius: 0.375rem;
+  padding: 0.45rem;
   color: var(--text-secondary);
-  font-size: 0.92rem;
-  font-weight: 500;
+  font-size: 0.75rem;
   transition:
-    background-color 160ms ease,
-    color 160ms ease;
+    background-color 120ms ease,
+    color 120ms ease;
+  position: relative;
 }
 
 .side-link:hover {
@@ -170,34 +173,32 @@ a {
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
-  padding: 1rem 1.5rem;
+  padding: 0.45rem 0.75rem;
 }
 
 .topbar {
-  min-height: 4.5rem;
+  min-height: 2.75rem;
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.35rem;
 }
 
 .eyebrow {
-  margin-bottom: 0.2rem;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0;
+  margin: 0;
+  height: 0;
+  opacity: 0;
 }
 
 .page-title {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  font-size: 1.38rem;
-  font-weight: 700;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 650;
 }
 
 .page-title-icon {
@@ -209,7 +210,7 @@ a {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 1.5rem;
+  padding: 0.65rem;
 }
 
 .theme-toggle,
@@ -220,22 +221,21 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.25rem;
   border: 1px solid var(--border);
-  border-radius: 0.72rem;
+  border-radius: 0.4rem;
   background: var(--surface-muted);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 650;
-  line-height: 1.15;
-  min-height: 2.45rem;
-  padding: 0.62rem 0.82rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  min-height: 1.75rem;
+  padding: 0.32rem 0.45rem;
   transition:
-    transform 120ms ease,
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .theme-toggle:hover,
@@ -243,7 +243,6 @@ a {
 .inbox-link:hover,
 .notification-bell-button:hover,
 .sort-button:hover {
-  transform: translateY(-1px);
   border-color: var(--border-strong);
   color: var(--text-primary);
 }
@@ -252,31 +251,31 @@ a {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.25rem;
 }
 
 .inbox-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.2rem;
+  min-width: 1rem;
   border-radius: 999px;
   background: var(--brand);
   color: #fff;
-  font-size: 0.7rem;
+  font-size: 0.625rem;
   font-weight: 700;
   line-height: 1;
-  padding: 0.2rem 0.35rem;
+  padding: 0.1rem 0.25rem;
 }
 
 .notification-dropdown {
   position: absolute;
-  top: calc(100% + 0.45rem);
+  top: calc(100% + 0.35rem);
   right: 0;
   z-index: 30;
-  width: min(24rem, 85vw);
+  width: min(22rem, 85vw);
   border: 1px solid var(--border);
-  border-radius: 0.85rem;
+  border-radius: 0.5rem;
   background: var(--surface);
   box-shadow: var(--shadow-soft);
   overflow: hidden;
@@ -287,21 +286,22 @@ a {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
-  padding: 0.65rem 0.75rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8rem;
 }
 
 .notification-list {
-  max-height: 18rem;
+  max-height: 14rem;
   overflow: auto;
 }
 
 .notification-item {
   display: flex;
-  gap: 0.45rem;
+  gap: 0.35rem;
   align-items: flex-start;
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
-  padding: 0.6rem 0.75rem;
+  padding: 0.4rem 0.5rem;
 }
 
 .notification-item:last-child {
@@ -317,40 +317,40 @@ a {
 }
 
 .notification-title {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 650;
 }
 
 .notification-body {
-  margin-top: 0.2rem;
+  margin-top: 0.1rem;
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
 }
 
 .notification-time {
-  margin-top: 0.25rem;
+  margin-top: 0.15rem;
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
 }
 
 .notification-empty {
   color: var(--text-muted);
-  font-size: 0.84rem;
-  padding: 0.75rem;
+  font-size: 0.78rem;
+  padding: 0.5rem;
 }
 
 .text-link-button {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.2rem;
   border: 0;
   background: transparent;
   color: var(--brand);
   cursor: pointer;
-  font-size: 0.82rem;
-  font-weight: 650;
+  font-size: 0.75rem;
+  font-weight: 600;
   padding: 0;
-  transition: color 160ms ease;
+  transition: color 120ms ease;
 }
 
 .text-link-button:hover {
@@ -360,12 +360,12 @@ a {
 .notification-footer-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.2rem;
   border-top: 1px solid var(--border);
   color: var(--brand);
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.6rem 0.75rem;
+  padding: 0.4rem 0.5rem;
   width: 100%;
 }
 
@@ -376,13 +376,13 @@ a {
 .dashboard-stack {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.5rem;
 }
 
 .workflow-stack {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.5rem;
   min-height: 0;
 }
 
@@ -396,15 +396,15 @@ a {
 .workflow-form {
   display: flex;
   align-items: end;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .workflow-form-grid {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.5rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .workflow-span-all {
@@ -412,14 +412,14 @@ a {
 }
 
 .workflow-textarea {
-  min-height: 5.5rem;
+  min-height: 4rem;
   resize: vertical;
 }
 
 .workflow-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .workflow-title {
@@ -427,9 +427,9 @@ a {
 }
 
 .workflow-subtext {
-  margin-top: 0.2rem;
+  margin-top: 0.1rem;
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .workflow-status-pill {
@@ -439,9 +439,9 @@ a {
   border-radius: 999px;
   background: var(--surface-muted);
   color: var(--text-secondary);
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  padding: 0.2rem 0.55rem;
+  padding: 0.1rem 0.4rem;
 }
 
 .active-row {
@@ -452,17 +452,17 @@ a {
 .messages-thread {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin-bottom: 0.8rem;
-  max-height: 26rem;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  max-height: 22rem;
   overflow: auto;
 }
 
 .message-bubble {
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: 0.45rem;
   background: var(--surface-muted);
-  padding: 0.6rem 0.7rem;
+  padding: 0.4rem 0.5rem;
 }
 
 .message-bubble.is-own {
@@ -471,88 +471,88 @@ a {
 
 .message-meta {
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  margin-bottom: 0.3rem;
+  font-size: 0.7rem;
+  margin-bottom: 0.15rem;
 }
 
 .message-actions {
-  margin-top: 0.4rem;
+  margin-top: 0.25rem;
 }
 
 .message-edit-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .kpi-grid {
   display: grid;
-  gap: 1rem;
+  gap: 0.5rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .kpi-card {
   border: 1px solid var(--border);
-  border-radius: 0.95rem;
+  border-radius: 0.45rem;
   background: var(--surface);
   box-shadow: var(--shadow-soft);
-  padding: 1rem;
+  padding: 0.55rem 0.65rem;
 }
 
 .kpi-label {
   color: var(--text-secondary);
-  font-size: 0.86rem;
+  font-size: 0.72rem;
   font-weight: 500;
 }
 
 .kpi-value {
-  margin-top: 0.4rem;
-  font-size: 1.8rem;
+  margin-top: 0.15rem;
+  font-size: 1.15rem;
   font-weight: 700;
 }
 
 .card {
   border: 1px solid var(--border);
-  border-radius: 0.95rem;
+  border-radius: 0.45rem;
   background: var(--surface);
   box-shadow: var(--shadow-soft);
-  padding: 1rem;
+  padding: 0.65rem;
 }
 
 .card-header {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.8rem;
+  gap: 0.5rem;
   justify-content: space-between;
-  margin-bottom: 0.9rem;
+  margin-bottom: 0.5rem;
 }
 
 .card-header h2 {
-  font-size: 1.03rem;
+  font-size: 0.875rem;
   font-weight: 650;
 }
 
 .card-header p {
-  margin-top: 0.25rem;
+  margin-top: 0.1rem;
   color: var(--text-secondary);
-  font-size: 0.86rem;
+  font-size: 0.75rem;
 }
 
 .card-controls {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.4rem;
 }
 
 .filter-input {
-  min-width: 14rem;
+  min-width: 10rem;
   border: 1px solid var(--border);
-  border-radius: 0.62rem;
+  border-radius: 0.35rem;
   background: var(--surface-muted);
   color: var(--text-primary);
-  font-size: 0.88rem;
-  padding: 0.52rem 0.66rem;
-  transition: border-color 160ms ease;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.45rem;
+  transition: border-color 120ms ease;
 }
 
 .filter-input:focus {
@@ -562,7 +562,7 @@ a {
 .sort-button-content {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .sort-button-icon {
@@ -570,22 +570,22 @@ a {
 }
 
 .table-wrap {
-  max-height: 21rem;
+  max-height: 16rem;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 0.8rem;
+  border-radius: 0.4rem;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
 }
 
 .data-table th,
 .data-table td {
   border-bottom: 1px solid var(--border);
-  padding: 0.7rem 0.75rem;
+  padding: 0.4rem 0.45rem;
   text-align: left;
 }
 
@@ -595,7 +595,7 @@ a {
   z-index: 1;
   background: var(--surface-muted);
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -606,7 +606,7 @@ a {
 }
 
 .data-table tbody tr {
-  transition: background-color 160ms ease;
+  transition: background-color 120ms ease;
 }
 
 .data-table tbody tr:hover {
@@ -623,12 +623,12 @@ a {
 }
 
 .loading-spinner {
-  width: 2rem;
-  height: 2rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 9999px;
-  border: 3px solid var(--border);
+  border: 2px solid var(--border);
   border-top-color: var(--brand);
-  margin: 0 auto 1rem;
+  margin: 0 auto 0.75rem;
 }
 
 .auth-shell {
@@ -639,59 +639,59 @@ a {
 .auth-content {
   display: flex;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: 1.5rem 0.75rem;
 }
 
 .auth-card {
-  width: min(100%, 32rem);
+  width: min(100%, 28rem);
   border: 1px solid var(--border);
-  border-radius: 1rem;
+  border-radius: 0.5rem;
   background: var(--surface);
   box-shadow: var(--shadow-soft);
-  padding: 1.2rem;
+  padding: 0.85rem;
 }
 
 .auth-card h1 {
-  font-size: 1.35rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
 .auth-description {
-  margin-top: 0.35rem;
+  margin-top: 0.25rem;
   color: var(--text-secondary);
-  font-size: 0.91rem;
+  font-size: 0.8rem;
 }
 
 .form-stack {
-  margin-top: 1rem;
+  margin-top: 0.65rem;
   display: flex;
   flex-direction: column;
-  gap: 0.78rem;
+  gap: 0.55rem;
 }
 
 .field-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.2rem;
 }
 
 .field-label {
   color: var(--text-secondary);
-  font-size: 0.84rem;
+  font-size: 0.72rem;
   font-weight: 600;
 }
 
 .text-input {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 0.7rem;
+  border-radius: 0.35rem;
   background: var(--surface-muted);
   color: var(--text-primary);
-  font-size: 0.91rem;
-  padding: 0.62rem 0.72rem;
+  font-size: 0.8rem;
+  padding: 0.38rem 0.5rem;
   transition:
-    border-color 160ms ease,
-    background-color 160ms ease;
+    border-color 120ms ease,
+    background-color 120ms ease;
 }
 
 .text-input::placeholder {
@@ -708,7 +708,7 @@ a {
 
 .field-note {
   color: var(--text-muted);
-  font-size: 0.79rem;
+  font-size: 0.68rem;
 }
 
 .field-note.is-error {
@@ -717,16 +717,16 @@ a {
 
 .inline-status {
   border: 1px solid transparent;
-  border-radius: 0.7rem;
-  font-size: 0.84rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  padding: 0.62rem 0.7rem;
+  padding: 0.35rem 0.45rem;
 }
 
 .inline-status-content {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .inline-status-icon {
@@ -754,27 +754,26 @@ a {
 
 .app-button {
   border: 1px solid transparent;
-  border-radius: 0.72rem;
+  border-radius: 0.38rem;
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 650;
-  line-height: 1.15;
-  min-height: 2.45rem;
-  padding: 0.62rem 0.82rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  min-height: 1.75rem;
+  padding: 0.32rem 0.5rem;
   transition:
-    transform 120ms ease,
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .app-button:hover:enabled {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .app-button:disabled {
   cursor: not-allowed;
-  opacity: 0.65;
+  opacity: 0.6;
   transform: none;
 }
 
@@ -808,7 +807,7 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .button-icon {
@@ -819,15 +818,15 @@ a {
 .button-row {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.4rem;
 }
 
 .text-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
   color: var(--brand);
-  font-size: 0.88rem;
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
@@ -838,7 +837,7 @@ a {
 .icon-with-label {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .pagination-bar {
@@ -847,12 +846,12 @@ a {
   justify-content: space-between;
   border-top: 1px solid var(--border);
   background: var(--surface-muted);
-  padding: 0.7rem 0.75rem;
+  padding: 0.4rem 0.45rem;
 }
 
 .pagination-info {
   color: var(--text-secondary);
-  font-size: 0.84rem;
+  font-size: 0.75rem;
 }
 
 .pagination-info strong {
@@ -867,14 +866,14 @@ a {
   align-items: center;
   justify-content: center;
   background: rgb(0 0 0 / 0.45);
-  padding: 1rem;
+  padding: 0.65rem;
 }
 
 .modal-panel {
-  width: min(100%, 36rem);
+  width: min(100%, 32rem);
   max-height: 85vh;
   border: 1px solid var(--border);
-  border-radius: 1rem;
+  border-radius: 0.45rem;
   background: var(--surface);
   box-shadow: var(--shadow-soft);
   overflow: auto;
@@ -885,11 +884,11 @@ a {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
-  padding: 1rem 1.25rem;
+  padding: 0.5rem 0.65rem;
 }
 
 .modal-header h2 {
-  font-size: 1.05rem;
+  font-size: 0.875rem;
   font-weight: 650;
 }
 
@@ -898,12 +897,12 @@ a {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  border-radius: 0.35rem;
   background: var(--surface-muted);
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 0.35rem;
-  transition: border-color 160ms ease, color 160ms ease;
+  padding: 0.2rem;
+  transition: border-color 120ms ease, color 120ms ease;
 }
 
 .modal-close:hover {
@@ -912,22 +911,22 @@ a {
 }
 
 .modal-body {
-  padding: 1.25rem;
+  padding: 0.65rem;
 }
 
 /* Discord-like messaging layout */
 .discord-layout {
   display: flex;
-  height: calc(100dvh - 8rem);
+  height: calc(100dvh - 6.5rem);
   border: 1px solid var(--border);
-  border-radius: 0.95rem;
+  border-radius: 0.45rem;
   overflow: hidden;
   background: var(--surface);
 }
 
 .discord-sidebar {
-  width: 20rem;
-  min-width: 20rem;
+  width: 17rem;
+  min-width: 17rem;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
@@ -935,13 +934,13 @@ a {
 }
 
 .discord-sidebar-header {
-  padding: 0.65rem;
+  padding: 0.45rem;
   border-bottom: 1px solid var(--border);
 }
 
 .discord-new-conv {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .discord-new-conv select {
@@ -952,28 +951,28 @@ a {
 .discord-conv-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0.35rem;
+  padding: 0.2rem;
 }
 
 .discord-conv-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 2rem 1rem;
+  gap: 0.35rem;
+  padding: 1.5rem 0.75rem;
   color: var(--text-muted);
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   text-align: center;
 }
 
 .discord-conv-item {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.6rem;
-  border-radius: 0.5rem;
+  gap: 0.45rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 0.3rem;
   cursor: pointer;
-  transition: background 120ms ease;
+  transition: background 100ms ease;
 }
 
 .discord-conv-item:hover {
@@ -985,13 +984,13 @@ a {
 }
 
 .discord-conv-avatar {
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 1.8rem;
+  height: 1.8rem;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
@@ -1004,7 +1003,7 @@ a {
 }
 
 .discord-conv-name {
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
@@ -1013,7 +1012,7 @@ a {
 }
 
 .discord-conv-preview {
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1025,14 +1024,14 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.1rem;
-  height: 1.1rem;
+  min-width: 1rem;
+  height: 1rem;
   border-radius: 999px;
   background: var(--brand);
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  padding: 0 0.3rem;
+  padding: 0 0.25rem;
   line-height: 1;
   flex-shrink: 0;
 }
@@ -1050,21 +1049,21 @@ a {
   justify-content: center;
   flex: 1;
   color: var(--text-muted);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
 .discord-channel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.65rem 1rem;
+  gap: 0.35rem;
+  padding: 0.45rem 0.65rem;
   border-bottom: 1px solid var(--border);
-  min-height: 3.5rem;
+  min-height: 2.5rem;
 }
 
 .discord-channel-header h2 {
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1074,7 +1073,7 @@ a {
 .discord-channel-actions {
   display: flex;
   align-items: center;
-  gap: 0.2rem;
+  gap: 0.15rem;
   flex-shrink: 0;
 }
 
@@ -1082,15 +1081,15 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 1.65rem;
+  height: 1.65rem;
   border: none;
-  border-radius: 0.35rem;
+  border-radius: 0.25rem;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
-  font-size: 1rem;
+  transition: background 100ms ease, color 100ms ease;
+  font-size: 0.9rem;
 }
 
 .discord-channel-btn:hover {
@@ -1111,7 +1110,7 @@ a {
 }
 
 .discord-messages {
-  padding: 0.25rem 0;
+  padding: 0.15rem 0;
   flex: 1;
 }
 
@@ -1119,16 +1118,16 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3rem 1rem;
+  padding: 2rem 0.75rem;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .discord-msg {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.45rem 1rem 0.45rem 1rem;
+  gap: 0.05rem;
+  padding: 0.3rem 0.65rem 0.3rem 0.65rem;
   position: relative;
   transition: background 100ms ease;
 }
@@ -1139,8 +1138,8 @@ a {
 
 .discord-msg-body {
   background: var(--surface-contrast);
-  border-radius: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.5rem;
   align-self: flex-start;
   max-width: 75%;
 }
@@ -1152,8 +1151,8 @@ a {
 
 .discord-msg-body p {
   margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: 0.82rem;
+  line-height: 1.4;
   color: var(--text-primary);
   word-break: break-word;
   white-space: pre-wrap;
@@ -1162,9 +1161,9 @@ a {
 .discord-msg-footer {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.2rem;
   align-self: flex-start;
-  padding: 0 0.2rem;
+  padding: 0 0.15rem;
 }
 
 .discord-msg.is-own .discord-msg-footer {
@@ -1172,12 +1171,12 @@ a {
 }
 
 .discord-msg-time {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
 }
 
 .discord-msg-tag {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
 }
 
@@ -1188,22 +1187,22 @@ a {
 .discord-msg-edit {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .discord-msg-actions {
   display: flex;
-  gap: 0.15rem;
+  gap: 0.1rem;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity 100ms ease;
   position: absolute;
-  top: -0.5rem;
-  right: 1rem;
+  top: -0.4rem;
+  right: 0.65rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  padding: 0.1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border-radius: 0.3rem;
+  padding: 0.05rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
 
 .discord-msg:hover .discord-msg-actions {
@@ -1212,31 +1211,31 @@ a {
 
 .discord-msg.is-own .discord-msg-actions {
   right: auto;
-  left: 1rem;
+  left: 0.65rem;
 }
 
 .discord-message-avatar {
-  width: 2rem;
-  height: 2rem;
+  width: 1.65rem;
+  height: 1.65rem;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   line-height: 1;
 }
 
 .discord-input-wrap {
-  padding: 0.65rem 1rem;
+  padding: 0.45rem 0.65rem;
   border-top: 1px solid var(--border);
 }
 
 .discord-status {
-  padding: 0.5rem 1rem 0;
+  padding: 0.35rem 0.65rem 0;
 }
 
 @media (max-width: 960px) {
@@ -1247,10 +1246,12 @@ a {
   .sidebar {
     position: static;
     height: auto;
+    flex-direction: row;
     border-right: 0;
     border-bottom: 1px solid var(--border);
-    gap: 0.9rem;
-    padding: 1rem;
+    gap: 0.35rem;
+    padding: 0.35rem;
+    overflow-x: auto;
   }
 
   .side-nav {
@@ -1259,12 +1260,12 @@ a {
   }
 
   .workspace-main {
-    padding: 1rem;
+    padding: 0.5rem;
   }
 
   .topbar {
     flex-wrap: wrap;
-    gap: 0.65rem;
+    gap: 0.4rem;
   }
 
   .topbar-actions {
@@ -1307,10 +1308,10 @@ a {
 
 .slack-message {
   display: flex;
-  gap: 0.6rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 0.4rem;
-  transition: background 120ms ease;
+  gap: 0.45rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 0.3rem;
+  transition: background 100ms ease;
   position: relative;
 }
 
@@ -1321,17 +1322,17 @@ a {
 
 
 .slack-avatar {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.35rem;
-  font-size: 0.72rem;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
   font-weight: 700;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   line-height: 1;
 }
 
@@ -1343,24 +1344,24 @@ a {
 .slack-header {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: 0.35rem;
   flex-wrap: wrap;
 }
 
 .slack-author {
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   color: var(--text-primary);
 }
 
 .slack-timestamp {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
 }
 
 .slack-text {
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: 0.82rem;
+  line-height: 1.4;
   color: var(--text-primary);
   margin-top: 0.05rem;
   word-break: break-word;
@@ -1369,17 +1370,17 @@ a {
 
 .slack-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.15rem;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity 100ms ease;
   position: absolute;
-  right: 0.5rem;
-  top: -0.55rem;
+  right: 0.35rem;
+  top: -0.4rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  padding: 0.1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border-radius: 0.3rem;
+  padding: 0.05rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
 
 .slack-message:hover .slack-actions {
@@ -1390,14 +1391,14 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.4rem;
+  height: 1.4rem;
   border: none;
-  border-radius: 0.25rem;
+  border-radius: 0.2rem;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 100ms ease, color 100ms ease;
+  transition: background 80ms ease, color 80ms ease;
 }
 
 .slack-action-btn:hover {
@@ -1414,12 +1415,12 @@ a {
 .slack-input-bar {
   display: flex;
   align-items: end;
-  gap: 0.5rem;
+  gap: 0.35rem;
   border: 1px solid var(--border);
-  border-radius: 0.7rem;
-  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+  border-radius: 0.35rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.5rem;
   background: var(--surface);
-  transition: border-color 160ms ease;
+  transition: border-color 120ms ease;
 }
 
 .slack-input-bar:focus-within {
@@ -1431,12 +1432,12 @@ a {
   border: none;
   background: transparent;
   resize: none;
-  min-height: 1.5rem;
-  max-height: 8rem;
-  padding: 0.15rem 0;
+  min-height: 1.25rem;
+  max-height: 6rem;
+  padding: 0.1rem 0;
   font-family: inherit;
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 0.82rem;
+  line-height: 1.35;
   color: var(--text-primary);
   outline: none;
 }
@@ -1444,9 +1445,9 @@ a {
 /* Kanban board */
 .kanban-board {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   overflow-x: auto;
-  padding-bottom: 0.25rem;
+  padding-bottom: 0.15rem;
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -1455,22 +1456,22 @@ a {
 .kanban-col {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  min-width: 16rem;
+  gap: 0.35rem;
+  min-width: 14rem;
   flex: 1;
-  border-radius: 0.7rem;
-  padding: 0.5rem;
+  border-radius: 0.4rem;
+  padding: 0.35rem;
   min-height: 0;
 }
 
 .kanban-card-list {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  padding-right: 0.15rem;
+  padding-right: 0.1rem;
 }
 
 .kanban-card-list::-webkit-scrollbar {
@@ -1509,21 +1510,21 @@ a {
 .kanban-col-header {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0 0.15rem;
+  gap: 0.3rem;
+  padding: 0 0.1rem;
 }
 
 .kanban-col-title {
   font-weight: 650;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: var(--text-primary);
 }
 
 .kanban-col-count {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-weight: 600;
   border-radius: 999px;
-  padding: 0 0.45rem;
+  padding: 0 0.35rem;
   line-height: 1.4;
 }
 
@@ -1559,17 +1560,17 @@ a {
 
 .kanban-card {
   border: 1px solid var(--border);
-  border-radius: 0.6rem;
+  border-radius: 0.35rem;
   background: var(--surface);
-  padding: 0.45rem 0.6rem;
+  padding: 0.35rem 0.45rem;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  transition: box-shadow 120ms ease;
+  gap: 0.1rem;
+  transition: box-shadow 100ms ease;
 }
 
 .kanban-card:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
 .kanban-card-meta-item.is-overdue {
@@ -1579,10 +1580,10 @@ a {
 
 .kanban-card-title {
   font-weight: 600;
-  font-size: 0.83rem;
+  font-size: 0.75rem;
   color: var(--text-primary);
   text-decoration: none;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .kanban-card-title:hover {
@@ -1594,9 +1595,9 @@ a {
 }
 
 .kanban-card-desc {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
-  line-height: 1.3;
+  line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
@@ -1606,15 +1607,15 @@ a {
 .kanban-card-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.15rem 0.35rem;
+  gap: 0.1rem 0.25rem;
   margin-top: 0.05rem;
 }
 
 .kanban-card-meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-  font-size: 0.72rem;
+  gap: 0.15rem;
+  font-size: 0.65rem;
   color: var(--text-secondary);
 }
 
@@ -1622,18 +1623,18 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.35rem;
-  margin-top: 0.15rem;
-  padding-top: 0.25rem;
+  gap: 0.25rem;
+  margin-top: 0.1rem;
+  padding-top: 0.15rem;
   border-top: 1px solid var(--border);
 }
 
 .kanban-card-footer .kanban-card-meta-item {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
 }
 
 .kanban-empty-col {
-  padding: 0 0.25rem;
-  font-size: 0.85rem;
+  padding: 0 0.15rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
