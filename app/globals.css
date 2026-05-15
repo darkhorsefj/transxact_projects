@@ -1433,6 +1433,7 @@ a {
   padding-bottom: 0.25rem;
   flex: 1;
   min-height: 0;
+  width: 100%;
 }
 
 .kanban-col {
@@ -1440,8 +1441,7 @@ a {
   flex-direction: column;
   gap: 0.5rem;
   min-width: 16rem;
-  width: 16rem;
-  flex-shrink: 0;
+  flex: 1;
   border-radius: 0.7rem;
   padding: 0.5rem;
   min-height: 0;
