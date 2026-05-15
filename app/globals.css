@@ -139,6 +139,8 @@ a {
 }
 
 .workspace {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -187,6 +189,10 @@ a {
 }
 
 .workspace-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 1.5rem;
 }
 
@@ -359,6 +365,14 @@ a {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-height: 0;
+}
+
+.workflow-stack > .card:only-child {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .workflow-form {
@@ -827,6 +841,386 @@ a {
   color: var(--text-primary);
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.45);
+  padding: 1rem;
+}
+
+.modal-panel {
+  width: min(100%, 36rem);
+  max-height: 85vh;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  overflow: auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 1.25rem;
+}
+
+.modal-header h2 {
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.35rem;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.modal-close:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 1.25rem;
+}
+
+/* Discord-like messaging layout */
+.discord-layout {
+  display: flex;
+  height: calc(100dvh - 8rem);
+  border: 1px solid var(--border);
+  border-radius: 0.95rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.discord-sidebar {
+  width: 20rem;
+  min-width: 20rem;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+
+.discord-sidebar-header {
+  padding: 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.discord-new-conv {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.discord-new-conv select {
+  flex: 1;
+  min-width: 0;
+}
+
+.discord-conv-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.35rem;
+}
+
+.discord-conv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.discord-conv-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.discord-conv-item:hover {
+  background: var(--surface-contrast);
+}
+
+.discord-conv-item.is-active {
+  background: var(--brand-soft);
+}
+
+.discord-conv-avatar {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.discord-conv-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.discord-conv-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discord-conv-preview {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 0.05rem;
+}
+
+.discord-conv-unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 0.3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.discord-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.discord-no-channel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.discord-channel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  min-height: 3.5rem;
+}
+
+.discord-channel-header h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discord-channel-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.discord-channel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  font-size: 1rem;
+}
+
+.discord-channel-btn:hover {
+  background: var(--surface-contrast);
+  color: var(--text-primary);
+}
+
+.discord-channel-btn.is-danger:hover {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.discord-messages-wrap {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.discord-messages {
+  padding: 0.25rem 0;
+  flex: 1;
+}
+
+.discord-no-messages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.discord-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.45rem 1rem 0.45rem 1rem;
+  position: relative;
+  transition: background 100ms ease;
+}
+
+.discord-msg:hover {
+  background: var(--surface-muted);
+}
+
+.discord-msg-body {
+  background: var(--surface-contrast);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  align-self: flex-start;
+  max-width: 75%;
+}
+
+.discord-msg.is-own .discord-msg-body {
+  background: var(--brand-soft);
+  align-self: flex-end;
+}
+
+.discord-msg-body p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.discord-msg-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+  padding: 0 0.2rem;
+}
+
+.discord-msg.is-own .discord-msg-footer {
+  align-self: flex-end;
+}
+
+.discord-msg-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.discord-msg-tag {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.discord-msg-tag.is-read {
+  color: var(--success);
+}
+
+.discord-msg-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.discord-msg-actions {
+  display: flex;
+  gap: 0.15rem;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  position: absolute;
+  top: -0.5rem;
+  right: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  padding: 0.1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.discord-msg:hover .discord-msg-actions {
+  opacity: 1;
+}
+
+.discord-msg.is-own .discord-msg-actions {
+  right: auto;
+  left: 1rem;
+}
+
+.discord-message-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  line-height: 1;
+}
+
+.discord-input-wrap {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.discord-status {
+  padding: 0.5rem 1rem 0;
+}
+
 @media (max-width: 960px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -885,4 +1279,316 @@ a {
   .button-row {
     flex-direction: column;
   }
+}
+
+/* Slack-like comment thread */
+.slack-thread {
+  display: flex;
+  flex-direction: column;
+}
+
+.slack-message {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.4rem;
+  transition: background 120ms ease;
+  position: relative;
+}
+
+.slack-message:hover {
+  background: var(--surface-muted);
+}
+
+
+
+.slack-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  line-height: 1;
+}
+
+.slack-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.slack-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.slack-author {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.slack-timestamp {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.slack-text {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+  margin-top: 0.05rem;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.slack-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  position: absolute;
+  right: 0.5rem;
+  top: -0.55rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  padding: 0.1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.slack-message:hover .slack-actions {
+  opacity: 1;
+}
+
+.slack-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.slack-action-btn:hover {
+  background: var(--surface-contrast);
+  color: var(--text-primary);
+}
+
+.slack-action-btn.is-danger:hover {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+/* Slack input bar */
+.slack-input-bar {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+  background: var(--surface);
+  transition: border-color 160ms ease;
+}
+
+.slack-input-bar:focus-within {
+  border-color: var(--brand);
+}
+
+.slack-input-bar textarea {
+  flex: 1;
+  border: none;
+  background: transparent;
+  resize: none;
+  min-height: 1.5rem;
+  max-height: 8rem;
+  padding: 0.15rem 0;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+  outline: none;
+}
+
+/* Kanban board */
+.kanban-board {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.kanban-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 16rem;
+  width: 16rem;
+  flex-shrink: 0;
+  border-radius: 0.7rem;
+  padding: 0.5rem;
+  min-height: 0;
+}
+
+.kanban-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding-right: 0.15rem;
+}
+
+.kanban-card-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.kanban-card-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.kanban-col.is-new {
+  background: #f0f5ff;
+}
+
+.kanban-col.is-active {
+  background: #fefce8;
+}
+
+.kanban-col.is-done {
+  background: #f0fdf4;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.15rem;
+}
+
+.kanban-col-title {
+  font-weight: 650;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.kanban-col-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  line-height: 1.4;
+}
+
+.kanban-col.is-new .kanban-col-count {
+  color: #2563eb;
+  background: #dbeafe;
+}
+
+.kanban-col.is-active .kanban-col-count {
+  color: #ca8a04;
+  background: #fef9c3;
+}
+
+.kanban-col.is-done .kanban-col-count {
+  color: #16a34a;
+  background: #bbf7d0;
+}
+
+.kanban-card {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  padding: 0.45rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  transition: box-shadow 120ms ease;
+}
+
+.kanban-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.kanban-card-meta-item.is-overdue {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.kanban-card-title {
+  font-weight: 600;
+  font-size: 0.83rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  line-height: 1.3;
+}
+
+.kanban-card-title:hover {
+  color: var(--brand);
+}
+
+.kanban-card-title + .kanban-card-desc {
+  margin-top: 0.05rem;
+}
+
+.kanban-card-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kanban-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.35rem;
+  margin-top: 0.05rem;
+}
+
+.kanban-card-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.kanban-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.kanban-card-footer .kanban-card-meta-item {
+  font-size: 0.7rem;
+}
+
+.kanban-empty-col {
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }

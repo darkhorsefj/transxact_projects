@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
 import {
   FiArchive,
   FiCheck,
+  FiEdit2,
   FiFlag,
   FiMessageSquare,
+  FiPlus,
   FiSend,
+  FiTrash2,
   FiUserCheck,
   FiUserX,
   FiX,
@@ -46,10 +49,49 @@ interface StatusState {
   message: string;
 }
 
-function formatDateTime(isoValue: string): string {
+const AVATAR_COLORS = [
+  "#5865F2", "#ED4245", "#57F287", "#FEE75C", "#EB459E",
+  "#FF73FA", "#00B0F4", "#4D3CFF", "#95EFB4", "#F8B4B4",
+  "#A3D5FF", "#F9A8D4", "#6EE7B7", "#FCD34D", "#A78BFA",
+];
+
+function getAvatarColor(userId: number): string {
+  return AVATAR_COLORS[Math.abs(userId) % AVATAR_COLORS.length];
+}
+
+function getInitials(label: string): string {
+  return label.charAt(0).toUpperCase();
+}
+
+function formatTime(isoValue: string): string {
   const parsed = new Date(isoValue);
   if (Number.isNaN(parsed.getTime())) {
-    return "Unknown";
+    return "";
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - parsed.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffDays === 0) {
+    return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  if (diffDays === 1) {
+    return "Yesterday";
+  }
+
+  if (diffDays < 7) {
+    return parsed.toLocaleDateString([], { weekday: "short" });
+  }
+
+  return parsed.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function formatFullDateTime(isoValue: string): string {
+  const parsed = new Date(isoValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
   }
 
   return parsed.toLocaleString();
@@ -71,6 +113,8 @@ export default function MessagesView({
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingBody, setEditingBody] = useState("");
   const [status, setStatus] = useState<StatusState | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeConversationId = activeConversation?.conversationId ?? null;
   const hasConversation = Boolean(activeConversation);
@@ -85,6 +129,28 @@ export default function MessagesView({
     });
   }, [activeConversationId]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeConversation?.messages]);
+
+  useEffect(() => {
+    if (hasConversation) {
+      textareaRef.current?.focus();
+    }
+  }, [hasConversation]);
+
+  useEffect(() => {
+    const eventSource = new EventSource("/api/realtime/stream", { withCredentials: true });
+    const handleRefresh = (): void => {
+      router.refresh();
+    };
+    eventSource.addEventListener("refresh", handleRefresh);
+    return () => {
+      eventSource.removeEventListener("refresh", handleRefresh);
+      eventSource.close();
+    };
+  }, [router]);
+
   const canSendInConversation = useMemo(() => {
     if (!activeConversation) {
       return false;
@@ -95,6 +161,10 @@ export default function MessagesView({
 
   const openConversation = (conversationId: number): void => {
     router.push(`/messages?conversationId=${conversationId}`);
+  };
+
+  const clearStatus = (): void => {
+    setStatus(null);
   };
 
   const handleStartConversation = async (): Promise<void> => {
@@ -123,7 +193,7 @@ export default function MessagesView({
   };
 
   const handleSendMessage = async (): Promise<void> => {
-    if (!activeConversation) {
+    if (!activeConversation || !messageBody.trim()) {
       return;
     }
 
@@ -138,6 +208,7 @@ export default function MessagesView({
     try {
       await sendDirectMessage(activeConversation.conversationId, messageBody);
       setMessageBody("");
+      clearStatus();
       router.refresh();
     } catch (error) {
       const message =
@@ -147,6 +218,19 @@ export default function MessagesView({
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void handleSendMessage();
+    }
+  };
+
+  const autoResizeTextarea = (e: React.FormEvent<HTMLTextAreaElement>): void => {
+    const el = e.currentTarget;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   };
 
   const beginEditingMessage = (messageId: number, currentBody: string): void => {
@@ -163,6 +247,7 @@ export default function MessagesView({
       await editDirectMessage(editingMessageId, editingBody);
       setEditingMessageId(null);
       setEditingBody("");
+      clearStatus();
       router.refresh();
     } catch (error) {
       const message =
@@ -192,6 +277,7 @@ export default function MessagesView({
     try {
       await setConversationArchived(activeConversation.conversationId, true);
       setStatus({ tone: "success", message: "Conversation archived." });
+      clearStatus();
       router.push("/messages");
       router.refresh();
     } catch (error) {
@@ -217,6 +303,7 @@ export default function MessagesView({
         router.push("/messages");
       }
 
+      clearStatus();
       router.refresh();
     } catch (error) {
       const message =
@@ -239,6 +326,7 @@ export default function MessagesView({
     try {
       await reportConversation(activeConversation.conversationId, reason);
       setStatus({ tone: "success", message: "Report submitted to admin review queue." });
+      toast.success("Report submitted.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to submit report.";
@@ -256,6 +344,7 @@ export default function MessagesView({
     try {
       await reportMessage(messageId, reason);
       setStatus({ tone: "success", message: "Message report submitted." });
+      toast.success("Report submitted.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to submit message report.";
@@ -265,17 +354,39 @@ export default function MessagesView({
   };
 
   return (
-    <section className="workflow-stack">
-      <section className="card">
-        <div className="card-header">
-          <div>
-            <h2>Start or open a conversation</h2>
-            <p>Direct 1:1 messaging is available for all active users.</p>
+    <section className="discord-layout">
+      <aside className="discord-sidebar">
+        <div className="discord-sidebar-header">
+          <div className="discord-new-conv">
+            <select
+              className="text-input"
+              value={recipientId}
+              onChange={(event) => setRecipientId(event.target.value)}
+              disabled={isCreatingConversation || userOptions.length === 0}
+            >
+              {userOptions.length === 0 ? <option value="">No users</option> : null}
+              {userOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <AppButton
+              variant="ghost"
+              onClick={() => void handleStartConversation()}
+              isLoading={isCreatingConversation}
+              loadingLabel="..."
+              disabled={userOptions.length === 0}
+              startIcon={<FiPlus aria-hidden="true" />}
+            >
+              New
+            </AppButton>
           </div>
           {currentUserRole === "admin" ? (
             <Link
               href="/admin/reports"
               className="text-link"
+              style={{ marginTop: "0.35rem", display: "inline-flex", fontSize: "0.8rem" }}
             >
               <span className="icon-with-label">
                 <FiFlag aria-hidden="true" />
@@ -284,262 +395,227 @@ export default function MessagesView({
             </Link>
           ) : null}
         </div>
-        <div className="workflow-form">
-          <div className="field-wrap">
-            <label
-              htmlFor="recipient"
-              className="field-label"
-            >
-              Recipient
-            </label>
-            <select
-              id="recipient"
-              className="text-input"
-              value={recipientId}
-              onChange={(event) => setRecipientId(event.target.value)}
-              disabled={isCreatingConversation || userOptions.length === 0}
-            >
-              {userOptions.length === 0 ? <option value="">No users available</option> : null}
-              {userOptions.map((option) => (
-                <option
-                  key={option.id}
-                  value={option.id}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <AppButton
-            onClick={() => void handleStartConversation()}
-            isLoading={isCreatingConversation}
-            loadingLabel="Opening..."
-            disabled={userOptions.length === 0}
-            startIcon={<FiMessageSquare aria-hidden="true" />}
-          >
-            Open conversation
-          </AppButton>
-        </div>
-        <InlineStatus
-          tone={status?.tone ?? "info"}
-          message={status?.message ?? null}
-        />
-      </section>
 
-      <section className="card">
-        <div className="card-header">
-          <div>
-            <h2>Conversations</h2>
-            <p>Sorted by most recent activity.</p>
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col">Participant</th>
-                <th scope="col">Last message</th>
-                <th scope="col">Unread</th>
-                <th scope="col">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {conversations.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="empty-row"
-                  >
-                    No conversations yet.
-                  </td>
-                </tr>
-              ) : (
-                conversations.map((item) => (
-                  <tr
-                    key={item.conversationId}
-                    className={item.conversationId === activeConversationId ? "active-row" : ""}
-                    onClick={() => openConversation(item.conversationId)}
-                  >
-                    <td>{item.participantLabel}</td>
-                    <td>{item.lastMessagePreview}</td>
-                    <td>{item.unreadCount}</td>
-                    <td>{item.lastMessageAt ? formatDateTime(item.lastMessageAt) : "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="card-header">
-          <div>
-            <h2>
-              {hasConversation
-                ? `Conversation with ${activeConversation?.participantLabel}`
-                : "Select a conversation"}
-            </h2>
-            <p>Edit or delete your own messages. Report abusive content to admins.</p>
-          </div>
-          {activeConversation ? (
-            <div className="button-row">
-              <AppButton
-                variant="secondary"
-                onClick={() => void handleArchiveConversation()}
-                startIcon={<FiArchive aria-hidden="true" />}
+        <div className="discord-conv-list">
+          {conversations.length === 0 ? (
+            <div className="discord-conv-empty">
+              <FiMessageSquare size={28} aria-hidden="true" />
+              <span>No conversations yet.</span>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                Select a user above to start one.
+              </span>
+            </div>
+          ) : (
+            conversations.map((item) => (
+              <div
+                key={item.conversationId}
+                className={`discord-conv-item ${item.conversationId === activeConversationId ? "is-active" : ""}`}
+                onClick={() => openConversation(item.conversationId)}
               >
-                Archive
-              </AppButton>
-              <AppButton
-                variant="secondary"
-                onClick={() => void handleBlockToggle()}
-                startIcon={
-                  activeConversation.isBlockedByCurrentUser ? (
+                <div
+                  className="discord-conv-avatar"
+                  style={{ backgroundColor: getAvatarColor(item.participantUserId) }}
+                >
+                  {getInitials(item.participantLabel)}
+                </div>
+                <div className="discord-conv-info">
+                  <div className="discord-conv-name">{item.participantLabel}</div>
+                  <div className="discord-conv-preview">{item.lastMessagePreview}</div>
+                </div>
+                {item.unreadCount > 0 ? (
+                  <div className="discord-conv-unread">
+                    {item.unreadCount > 99 ? "99+" : item.unreadCount}
+                  </div>
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+
+      <main className="discord-main">
+        {!activeConversation ? (
+          <div className="discord-no-channel">
+            <span style={{ textAlign: "center", maxWidth: "20rem" }}>
+              <FiMessageSquare size={32} style={{ display: "block", margin: "0 auto 0.5rem", opacity: 0.4 }} aria-hidden="true" />
+              Select a conversation or start a new one
+            </span>
+          </div>
+        ) : (
+          <>
+            <header className="discord-channel-header">
+              <h2>
+                <FiMessageSquare size={16} style={{ marginRight: "0.35rem", verticalAlign: "middle", opacity: 0.6 }} aria-hidden="true" />
+                {activeConversation.participantLabel}
+              </h2>
+              <div className="discord-channel-actions">
+                <button
+                  className="discord-channel-btn"
+                  onClick={() => void handleArchiveConversation()}
+                  title="Archive conversation"
+                >
+                  <FiArchive aria-hidden="true" />
+                </button>
+                <button
+                  className="discord-channel-btn"
+                  onClick={() => void handleBlockToggle()}
+                  title={activeConversation.isBlockedByCurrentUser ? "Unblock user" : "Block user"}
+                >
+                  {activeConversation.isBlockedByCurrentUser ? (
                     <FiUserCheck aria-hidden="true" />
                   ) : (
                     <FiUserX aria-hidden="true" />
-                  )
-                }
-              >
-                {activeConversation.isBlockedByCurrentUser ? "Unblock" : "Block user"}
-              </AppButton>
-              <AppButton
-                variant="secondary"
-                onClick={() => void handleReportConversation()}
-                startIcon={<FiFlag aria-hidden="true" />}
-              >
-                Report conversation
-              </AppButton>
-            </div>
-          ) : null}
-        </div>
+                  )}
+                </button>
+                <button
+                  className="discord-channel-btn is-danger"
+                  onClick={() => void handleReportConversation()}
+                  title="Report conversation"
+                >
+                  <FiFlag aria-hidden="true" />
+                </button>
+              </div>
+            </header>
 
-        {!activeConversation ? (
-          <InlineStatus
-            tone="info"
-            message="Choose a conversation to view messages."
-          />
-        ) : (
-          <>
-            {(activeConversation.isBlockedByCurrentUser ||
-              activeConversation.isBlockedByOtherUser) && (
+            <div className="discord-status">
               <InlineStatus
-                tone="error"
-                message="Messaging is blocked in this conversation."
+                tone={status?.tone ?? "info"}
+                message={status?.message ?? null}
               />
-            )}
-            <div className="messages-thread">
+            </div>
+
+            <div className="discord-messages-wrap">
               {activeConversation.messages.length === 0 ? (
-                <p className="empty-row">No messages yet.</p>
+                <div className="discord-no-messages">
+                  No messages yet. Say hello!
+                </div>
               ) : (
-                activeConversation.messages.map((message) => (
-                  <article
-                    key={message.id}
-                    className={`message-bubble ${message.isOwn ? "is-own" : "is-peer"}`}
-                  >
-                    <p className="message-meta">
-                      <strong>{message.senderLabel}</strong> ·{" "}
-                      {formatDateTime(message.createdAt)}
-                      {message.isEdited && !message.isDeleted ? " · edited" : ""}
-                      {message.isOwn && message.readByOtherUser ? " · read" : ""}
-                    </p>
-
-                    {editingMessageId === message.id ? (
-                      <div className="message-edit-wrap">
-                        <textarea
-                          className="text-input workflow-textarea"
-                          value={editingBody}
-                          onChange={(event) => setEditingBody(event.target.value)}
-                        />
-                        <div className="button-row">
-                          <AppButton
-                            variant="secondary"
-                            onClick={() => void handleSaveEdit()}
-                            startIcon={<FiCheck aria-hidden="true" />}
-                          >
-                            Save
-                          </AppButton>
-                          <AppButton
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingMessageId(null);
-                              setEditingBody("");
-                            }}
-                            startIcon={<FiX aria-hidden="true" />}
-                          >
-                            Cancel
-                          </AppButton>
+                <div className="discord-messages">
+                  {activeConversation.messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`discord-msg${message.isOwn ? " is-own" : ""}`}
+                    >
+                      {editingMessageId === message.id ? (
+                        <div className="discord-msg-edit">
+                          <textarea
+                            className="text-input"
+                            value={editingBody}
+                            onChange={(event) => setEditingBody(event.target.value)}
+                            style={{ minHeight: "3rem", resize: "vertical" }}
+                          />
+                          <div className="button-row">
+                            <AppButton
+                              variant="secondary"
+                              onClick={() => void handleSaveEdit()}
+                              startIcon={<FiCheck aria-hidden="true" />}
+                            >
+                              Save
+                            </AppButton>
+                            <AppButton
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingMessageId(null);
+                                setEditingBody("");
+                              }}
+                              startIcon={<FiX aria-hidden="true" />}
+                            >
+                              Cancel
+                            </AppButton>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <p>{message.body}</p>
-                    )}
+                      ) : (
+                        <div className="discord-msg-body">
+                          <p>{message.body}</p>
+                        </div>
+                      )}
 
-                    <div className="button-row message-actions">
-                      {message.isOwn && !message.isDeleted ? (
-                        <>
+                      {editingMessageId !== message.id ? (
+                        <div className="discord-msg-footer">
+                          <span className="discord-msg-time" title={formatFullDateTime(message.createdAt)}>
+                            {formatTime(message.createdAt)}
+                          </span>
+                          {message.isEdited && !message.isDeleted ? (
+                            <span className="discord-msg-tag">edited</span>
+                          ) : null}
+                          {message.isOwn && message.readByOtherUser ? (
+                            <span className="discord-msg-tag is-read">· read</span>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <div className="discord-msg-actions">
+                        {message.isOwn && !message.isDeleted ? (
+                          <>
+                            <button
+                              type="button"
+                              className="slack-action-btn"
+                              onClick={() => beginEditingMessage(message.id, message.body)}
+                              title="Edit"
+                            >
+                              <FiEdit2 size={14} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="slack-action-btn is-danger"
+                              onClick={() => void handleDeleteMessage(message.id)}
+                              title="Delete"
+                            >
+                              <FiTrash2 size={14} aria-hidden="true" />
+                            </button>
+                          </>
+                        ) : null}
+                        {!message.isDeleted ? (
                           <button
                             type="button"
-                            className="text-link-button"
-                            onClick={() => beginEditingMessage(message.id, message.body)}
+                            className="slack-action-btn is-danger"
+                            onClick={() => void handleReportMessage(message.id)}
+                            title="Report"
                           >
-                            Edit
+                            <FiFlag size={14} aria-hidden="true" />
                           </button>
-                          <button
-                            type="button"
-                            className="text-link-button"
-                            onClick={() => void handleDeleteMessage(message.id)}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      ) : null}
-                      {!message.isDeleted ? (
-                        <button
-                          type="button"
-                          className="text-link-button"
-                          onClick={() => void handleReportMessage(message.id)}
-                        >
-                          Report
-                        </button>
-                      ) : null}
+                        ) : null}
+                      </div>
                     </div>
-                  </article>
-                ))
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
               )}
             </div>
 
-            <div className="workflow-form">
-              <div className="field-wrap workflow-span-all">
-                <label
-                  htmlFor="new-message"
-                  className="field-label"
-                >
-                  New message
-                </label>
+            <div className="discord-input-wrap">
+              <div className="slack-input-bar">
                 <textarea
-                  id="new-message"
-                  className="text-input workflow-textarea"
+                  ref={textareaRef}
                   value={messageBody}
-                  onChange={(event) => setMessageBody(event.target.value)}
+                  onChange={(event) => {
+                    setMessageBody(event.target.value);
+                  }}
+                  onInput={autoResizeTextarea}
+                  onKeyDown={handleKeyDown}
                   disabled={!canSendInConversation || isSending}
-                  placeholder="Write a message..."
+                  placeholder={
+                    canSendInConversation
+                      ? `Message @${activeConversation.participantLabel}`
+                      : "Messaging is blocked"
+                  }
+                  rows={1}
                 />
+                <AppButton
+                  variant="primary"
+                  onClick={() => void handleSendMessage()}
+                  isLoading={isSending}
+                  loadingLabel="..."
+                  disabled={!canSendInConversation || !messageBody.trim()}
+                  startIcon={<FiSend aria-hidden="true" />}
+                >
+                  Send
+                </AppButton>
               </div>
-              <AppButton
-                onClick={() => void handleSendMessage()}
-                isLoading={isSending}
-                loadingLabel="Sending..."
-                disabled={!canSendInConversation}
-                startIcon={<FiSend aria-hidden="true" />}
-              >
-                Send
-              </AppButton>
             </div>
           </>
         )}
-      </section>
+      </main>
     </section>
   );
 }

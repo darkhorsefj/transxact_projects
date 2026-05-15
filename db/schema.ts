@@ -39,6 +39,7 @@ export type NotificationSourceType =
   | "project"
   | "task"
   | "issue"
+  | "action"
   | "report";
 export type NotificationChannel = "in_app" | "email";
 export type NotificationDeliveryStatus = "delivered" | "failed" | "read";
@@ -99,11 +100,13 @@ export const action = sqliteTable("action", {
     .references(() => user.id),
   name: text().notNull(),
   description: text(),
+  status: text().notNull().$type<ActionStatus>().default("pending"),
   createdAt: text().notNull(),
   updatedAt: text(),
   deletedAt: text(),
 });
 
+export type ActionStatus = "pending" | "completed";
 export type IssueStatus = "open" | "in_progress" | "resolved" | "closed";
 export const issue = sqliteTable("issue", {
   id: int().primaryKey({ autoIncrement: true }),
@@ -373,6 +376,18 @@ export const invite = sqliteTable("invite", {
   revokedAt: text(),
   createdAt: text().notNull(),
   updatedAt: text(),
+});
+
+export const taskCommentReadState = sqliteTable("task_comment_read_state", {
+  id: int().primaryKey({ autoIncrement: true }),
+  userId: int()
+    .notNull()
+    .references(() => user.id),
+  taskId: int()
+    .notNull()
+    .references(() => task.id),
+  lastReadCommentId: int().references(() => workItemComment.id),
+  lastReadAt: text().notNull(),
 });
 
 export const workItemComment = sqliteTable("work_item_comment", {

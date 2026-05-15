@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { FiArrowDown, FiArrowUp } from "react-icons/fi";
 import InlineStatus from "@/app/ui/inlineStatus";
+import { useSseRefresh } from "@/app/ui/useSseRefresh";
 
 interface AssigneeTaskSummary {
   assigneeName: string | null;
@@ -40,6 +41,7 @@ export default function DashboardView({
   openTasksByAssignee,
   overdueTaskCount,
 }: DashboardViewProps): ReactElement {
+  useSseRefresh();
   const [taskFilter, setTaskFilter] = useState("");
   const [issueFilter, setIssueFilter] = useState("");
   const [taskSortDirection, setTaskSortDirection] = useState<SortDirection>(

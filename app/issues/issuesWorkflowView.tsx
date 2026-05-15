@@ -8,7 +8,9 @@ import { toast } from "sonner";
 import { FiChevronsRight, FiEye, FiEyeOff, FiPlus } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import Modal from "@/app/ui/modal";
 import TextField from "@/app/ui/textField";
+import { useSseRefresh } from "@/app/ui/useSseRefresh";
 import {
   advanceIssueStatus,
   createIssue,
@@ -53,6 +55,7 @@ export default function IssuesWorkflowView({
   projects,
   tasks,
 }: IssuesWorkflowViewProps): ReactElement {
+  useSseRefresh();
   const router = useRouter();
   const [projectId, setProjectId] = useState<string>(
     projects[0] ? String(projects[0].id) : "",
@@ -61,6 +64,7 @@ export default function IssuesWorkflowView({
   const [assigneeUserId, setAssigneeUserId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdvancingId, setIsAdvancingId] = useState<number | null>(null);
   const [isTogglingFollowId, setIsTogglingFollowId] = useState<number | null>(null);
@@ -118,8 +122,8 @@ export default function IssuesWorkflowView({
       setAssigneeUserId("");
       setTitle("");
       setDescription("");
-      setStatus({ tone: "success", message: "Issue created." });
       toast.success("Issue created");
+      setIsModalOpen(false);
       router.refresh();
     } catch (error) {
       const message =
@@ -171,153 +175,26 @@ export default function IssuesWorkflowView({
       <section className="card">
         <div className="card-header">
           <div>
-            <h2>Create issue</h2>
-            <p>Capture and move blockers from open through to closed.</p>
+            <h2>Issues</h2>
+            <p>Manage blockers from open through to closed.</p>
+          </div>
+          <div className="card-controls">
+            <AppButton
+              onClick={() => setIsModalOpen(true)}
+              disabled={!hasProject}
+              startIcon={<FiPlus aria-hidden="true" />}
+            >
+              Create issue
+            </AppButton>
           </div>
         </div>
 
-        {!hasProject ? (
+        {!hasProject && (
           <InlineStatus
             tone="error"
             message="Create at least one project before logging issues."
           />
-        ) : (
-          <div className="workflow-form-grid">
-            <div className="field-wrap">
-              <label
-                htmlFor="issue-project"
-                className="field-label"
-              >
-                Project
-              </label>
-              <select
-                id="issue-project"
-                className="text-input"
-                value={projectId}
-                onChange={(event) => handleProjectChange(event.target.value)}
-                disabled={isSubmitting}
-              >
-                {projects.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.id}
-                  >
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="field-wrap">
-              <label
-                htmlFor="issue-task"
-                className="field-label"
-              >
-                Linked task
-              </label>
-              <select
-                id="issue-task"
-                className="text-input"
-                value={taskId}
-                onChange={(event) => setTaskId(event.target.value)}
-                disabled={isSubmitting}
-              >
-                <option value="">None</option>
-                {filteredTaskOptions.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.id}
-                  >
-                    {item.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="field-wrap">
-              <label
-                htmlFor="issue-assignee"
-                className="field-label"
-              >
-                Assignee
-              </label>
-              <select
-                id="issue-assignee"
-                className="text-input"
-                value={assigneeUserId}
-                onChange={(event) => setAssigneeUserId(event.target.value)}
-                disabled={isSubmitting}
-              >
-                <option value="">Unassigned</option>
-                {assignees.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.id}
-                  >
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <TextField
-              id="issue-title"
-              label="Issue title"
-              value={title}
-              onChange={(event) => {
-                setTitle(event.target.value);
-                if (status?.tone === "error") {
-                  setStatus(null);
-                }
-              }}
-              placeholder="Email delivery fails for invitations"
-              disabled={isSubmitting}
-              required
-            />
-
-            <div className="field-wrap workflow-span-all">
-              <label
-                htmlFor="issue-description"
-                className="field-label"
-              >
-                Description
-              </label>
-              <textarea
-                id="issue-description"
-                className="text-input workflow-textarea"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Optional troubleshooting context and expected behavior."
-                disabled={isSubmitting}
-              />
-            </div>
-          </div>
         )}
-
-        <div className="workflow-actions">
-          <AppButton
-            onClick={handleCreateIssue}
-            disabled={!hasProject}
-            isLoading={isSubmitting}
-            loadingLabel="Creating..."
-            startIcon={<FiPlus aria-hidden="true" />}
-          >
-            Create issue
-          </AppButton>
-        </div>
-        <InlineStatus
-          tone={status?.tone ?? "info"}
-          message={status?.message ?? null}
-        />
-      </section>
-
-      <section className="card">
-        <div className="card-header">
-          <div>
-            <h2>Issues</h2>
-            <p>Manage blockers from open through to closed.</p>
-          </div>
-        </div>
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -403,6 +280,104 @@ export default function IssuesWorkflowView({
           </table>
         </div>
       </section>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setStatus(null);
+        }}
+        title="Create issue"
+      >
+        <div className="workflow-form-grid">
+          <div className="field-wrap">
+            <label htmlFor="issue-project" className="field-label">Project</label>
+            <select
+              id="issue-project"
+              className="text-input"
+              value={projectId}
+              onChange={(event) => handleProjectChange(event.target.value)}
+              disabled={isSubmitting}
+            >
+              {projects.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field-wrap">
+            <label htmlFor="issue-task" className="field-label">Linked task</label>
+            <select
+              id="issue-task"
+              className="text-input"
+              value={taskId}
+              onChange={(event) => setTaskId(event.target.value)}
+              disabled={isSubmitting}
+            >
+              <option value="">None</option>
+              {filteredTaskOptions.map((item) => (
+                <option key={item.id} value={item.id}>{item.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field-wrap">
+            <label htmlFor="issue-assignee" className="field-label">Assignee</label>
+            <select
+              id="issue-assignee"
+              className="text-input"
+              value={assigneeUserId}
+              onChange={(event) => setAssigneeUserId(event.target.value)}
+              disabled={isSubmitting}
+            >
+              <option value="">Unassigned</option>
+              {assignees.map((item) => (
+                <option key={item.id} value={item.id}>{item.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <TextField
+            id="issue-title"
+            label="Issue title"
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              if (status?.tone === "error") setStatus(null);
+            }}
+            placeholder="Email delivery fails for invitations"
+            disabled={isSubmitting}
+            required
+          />
+
+          <div className="field-wrap workflow-span-all">
+            <label htmlFor="issue-description" className="field-label">Description</label>
+            <textarea
+              id="issue-description"
+              className="text-input workflow-textarea"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Optional troubleshooting context and expected behavior."
+              disabled={isSubmitting}
+            />
+          </div>
+        </div>
+
+        <div className="workflow-actions">
+          <AppButton
+            onClick={handleCreateIssue}
+            disabled={!hasProject}
+            isLoading={isSubmitting}
+            loadingLabel="Creating..."
+            startIcon={<FiPlus aria-hidden="true" />}
+          >
+            Create issue
+          </AppButton>
+        </div>
+        <InlineStatus
+          tone={status?.tone ?? "info"}
+          message={status?.message ?? null}
+        />
+      </Modal>
     </section>
   );
 }

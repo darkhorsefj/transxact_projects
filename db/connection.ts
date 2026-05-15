@@ -180,6 +180,16 @@ const compatibilityTableStatements = [
     FOREIGN KEY ("issueId") REFERENCES "issue"("id") ON UPDATE no action ON DELETE no action,
     FOREIGN KEY ("createdByUserId") REFERENCES "user"("id") ON UPDATE no action ON DELETE no action
   )`,
+  `CREATE TABLE IF NOT EXISTS "task_comment_read_state" (
+    "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "userId" integer NOT NULL,
+    "taskId" integer NOT NULL,
+    "lastReadCommentId" integer,
+    "lastReadAt" text NOT NULL,
+    FOREIGN KEY ("userId") REFERENCES "user"("id") ON UPDATE no action ON DELETE no action,
+    FOREIGN KEY ("taskId") REFERENCES "task"("id") ON UPDATE no action ON DELETE no action,
+    FOREIGN KEY ("lastReadCommentId") REFERENCES "work_item_comment"("id") ON UPDATE no action ON DELETE no action
+  )`,
 ];
 
 const compatibilityIndexStatements = [
@@ -207,6 +217,8 @@ const compatibilityIndexStatements = [
    ON "notification_delivery_log" ("notificationId", "createdAt")`,
   `CREATE INDEX IF NOT EXISTS "notification_email_queue_status_idx"
    ON "notification_email_queue" ("status", "sendAfterAt")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "task_comment_read_state_unique"
+   ON "task_comment_read_state" ("userId", "taskId")`,
 ];
 
 type TableInfoRow = {

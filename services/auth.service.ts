@@ -27,13 +27,14 @@ function parseISOString(isoString: string): number {
 
 async function sendLoginCode(email: string, code: string): Promise<void> {
   const content = createUnifiedEmailContent({
-    headline: "Your Transxact login code",
+    headline: "Your login code",
     messageLines: [
-      `Use this login code to access your account: ${code}`,
+      "Use the code below to sign in to your account.",
       "This code expires in 10 minutes.",
-      "If you did not request this code, you can ignore this email.",
+      "If you did not request this code, you can safely ignore this email.",
     ],
-    previewText: `Your login code is ${code}`,
+    codeBlock: code,
+    previewText: "Enter your login code to sign in to Transxact Projects",
   });
 
   await sendEmail({

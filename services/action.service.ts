@@ -2,7 +2,13 @@
 
 import { and, asc, eq, isNull } from "drizzle-orm";
 import db, { ensureDbSchema } from "@/db/connection";
-import { action, user } from "@/db/schema";
+import { action, phase, task, user, type NotificationSourceType } from "@/db/schema";
+import {
+  createNotifications,
+  ensureEntitySubscriptions,
+  resolveEntityNotificationRecipients,
+} from "./notification.service";
+import { publishRealtimeRefresh } from "./realtime.service";
 import { requireSessionUser } from "./session.service";
 
 const MIN_ACTION_NAME_LENGTH = 2;
@@ -11,6 +17,7 @@ export interface ActionItem {
   id: number;
   name: string;
   description: string | null;
+  status: "pending" | "completed";
   createdByUserId: number;
   authorLabel: string;
   isOwn: boolean;
@@ -27,6 +34,7 @@ export async function listActionsByTask(taskId: number): Promise<ActionItem[]> {
       id: action.id,
       name: action.name,
       description: action.description,
+      status: action.status,
       createdByUserId: action.createdByUserId,
       authorName: user.name,
       authorEmail: user.email,
@@ -42,6 +50,7 @@ export async function listActionsByTask(taskId: number): Promise<ActionItem[]> {
     id: row.id,
     name: row.name,
     description: row.description,
+    status: row.status as "pending" | "completed",
     createdByUserId: row.createdByUserId,
     authorLabel: row.authorName?.trim() || row.authorEmail,
     isOwn: row.createdByUserId === currentUser.id,
@@ -69,15 +78,62 @@ export async function createTaskAction(
   const normalizedDescription = description?.trim() || null;
 
   const nowIso = new Date().toISOString();
-  await db.insert(action).values({
-    projectId,
-    taskId,
-    createdByUserId: currentUser.id,
-    name: normalizedName,
-    description: normalizedDescription,
-    createdAt: nowIso,
-    updatedAt: nowIso,
-  });
+  const insertedRows = await db
+    .insert(action)
+    .values({
+      projectId,
+      taskId,
+      createdByUserId: currentUser.id,
+      name: normalizedName,
+      description: normalizedDescription,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    })
+    .returning({ id: action.id });
+
+  if (insertedRows.length === 0) return;
+
+  // Notify task subscribers
+  const taskRows = await db
+    .select({
+      title: task.title,
+      assigneeUserId: task.assigneeUserId,
+      createdByUserId: task.createdByUserId,
+    })
+    .from(task)
+    .where(and(eq(task.id, taskId), isNull(task.deletedAt)))
+    .limit(1);
+
+  if (taskRows.length > 0) {
+    const taskData = taskRows[0];
+    await ensureEntitySubscriptions("task", taskId, [
+      currentUser.id,
+      taskData.createdByUserId,
+      taskData.assigneeUserId,
+    ]);
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "task",
+      entityId: taskId,
+      creatorUserId: taskData.createdByUserId,
+      assigneeUserId: taskData.assigneeUserId,
+      actorUserId: currentUser.id,
+    });
+    await createNotifications({
+      recipientUserIds: recipients,
+      actorUserId: currentUser.id,
+      category: "task_activity",
+      type: "action_created",
+      title: `${currentUser.name ?? "Someone"} added action: ${normalizedName}`,
+      body: description
+        ? `"${normalizedName}": ${description} (in task "${taskData.title}")`
+        : `"${normalizedName}" added to task "${taskData.title}"`,
+      href: `/tasks?taskId=${taskId}`,
+      sourceType: "action" as NotificationSourceType,
+      sourceId: insertedRows[0].id,
+      emailDelayMinutes: 0,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  }
 }
 
 export async function deleteTaskAction(actionId: number): Promise<void> {
@@ -88,6 +144,7 @@ export async function deleteTaskAction(actionId: number): Promise<void> {
     .select({
       id: action.id,
       createdByUserId: action.createdByUserId,
+      taskId: action.taskId,
     })
     .from(action)
     .where(and(eq(action.id, actionId), isNull(action.deletedAt)))
@@ -106,4 +163,106 @@ export async function deleteTaskAction(actionId: number): Promise<void> {
     .update(action)
     .set({ deletedAt: nowIso, updatedAt: nowIso })
     .where(eq(action.id, actionId));
+
+  const actionRow = rows[0];
+  if (actionRow.taskId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "task",
+      entityId: actionRow.taskId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  }
+}
+
+export async function getTaskActionData(taskId: number): Promise<{ actions: ActionItem[]; projectId: number }> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const taskRows = await db
+    .select({ projectId: phase.projectId })
+    .from(task)
+    .innerJoin(phase, eq(task.phaseId, phase.id))
+    .where(eq(task.id, taskId))
+    .limit(1);
+
+  if (taskRows.length === 0) {
+    throw new Error("Task not found.");
+  }
+
+  const actions = await listActionsByTask(taskId);
+  return { actions, projectId: taskRows[0].projectId };
+}
+
+export async function updateActionStatus(actionId: number, status: "pending" | "completed"): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  const rows = await db
+    .select({
+      id: action.id,
+      createdByUserId: action.createdByUserId,
+      name: action.name,
+      taskId: action.taskId,
+    })
+    .from(action)
+    .where(and(eq(action.id, actionId), isNull(action.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Action not found.");
+  }
+
+  if (rows[0].createdByUserId !== currentUser.id) {
+    throw new Error("You can only update your own actions.");
+  }
+
+  const nowIso = new Date().toISOString();
+  await db
+    .update(action)
+    .set({ status, updatedAt: nowIso })
+    .where(eq(action.id, actionId));
+
+  const taskId = rows[0].taskId;
+  if (!taskId) return;
+
+  // Notify task subscribers
+  const taskRows = await db
+    .select({
+      title: task.title,
+      assigneeUserId: task.assigneeUserId,
+      createdByUserId: task.createdByUserId,
+    })
+    .from(task)
+    .where(and(eq(task.id, taskId), isNull(task.deletedAt)))
+    .limit(1);
+
+  if (taskRows.length > 0) {
+    const taskData = taskRows[0];
+    await ensureEntitySubscriptions("task", taskId, [
+      currentUser.id,
+      taskData.createdByUserId,
+      taskData.assigneeUserId,
+    ]);
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "task",
+      entityId: taskId,
+      creatorUserId: taskData.createdByUserId,
+      assigneeUserId: taskData.assigneeUserId,
+      actorUserId: currentUser.id,
+    });
+    await createNotifications({
+      recipientUserIds: recipients,
+      actorUserId: currentUser.id,
+      category: "task_activity",
+      type: "action_status_changed",
+      title: `Action ${status}: ${rows[0].name}`,
+      body: `${currentUser.name ?? "Someone"} marked action "${rows[0].name}" as ${status} in task "${taskData.title}".`,
+      href: `/tasks?taskId=${taskId}`,
+      sourceType: "action" as NotificationSourceType,
+      sourceId: actionId,
+      emailDelayMinutes: 0,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  }
 }

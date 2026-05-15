@@ -118,3 +118,21 @@ export function publishRealtimeRefresh(userIds: number[]): void {
     }
   }
 }
+
+export function publishRealtimeRefreshAll(): void {
+  const connections = getRealtimeConnections();
+  if (connections.size === 0) {
+    return;
+  }
+
+  const payload: RealtimePayload = { type: "refresh", at: new Date().toISOString() };
+
+  for (const [userId, userConnections] of connections) {
+    for (const controller of userConnections) {
+      const sent = sendSseEvent(controller, "refresh", payload);
+      if (!sent) {
+        removeController(userId, controller);
+      }
+    }
+  }
+}

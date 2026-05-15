@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import {
   FiSearch,
   FiDownload,
@@ -10,9 +9,14 @@ import {
   FiTrash2,
   FiChevronLeft,
   FiChevronRight,
+  FiMail,
+  FiUserPlus,
+  FiSave,
 } from "react-icons/fi";
 import { toast } from "sonner";
 import AppButton from "@/app/ui/appButton";
+import InlineStatus from "@/app/ui/inlineStatus";
+import Modal from "@/app/ui/modal";
 
 interface User {
   id: number;
@@ -52,6 +56,25 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<"" | "active" | "inactive" | "pending">("");
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editRole, setEditRole] = useState<"admin" | "member">("member");
+  const [editStatus, setEditStatus] = useState<"active" | "inactive" | "pending">("active");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const openEditModal = (user: User) => {
+    setEditingUser(user);
+    setEditRole(user.role);
+    setEditStatus(user.status);
+    setIsEditModalOpen(true);
+  };
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -138,6 +161,75 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) {
+      setInviteStatus({ tone: "error", message: "Email is required" });
+      return;
+    }
+
+    try {
+      setIsInviting(true);
+      setInviteStatus(null);
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to invite user");
+      }
+
+      toast.success(`Invitation sent to ${inviteEmail}`);
+      setInviteEmail("");
+      setInviteRole("member");
+      setIsInviteModalOpen(false);
+      fetchUsers();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to invite user";
+      setInviteStatus({ tone: "error", message });
+      toast.error(message);
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!editingUser) return;
+    if (editRole === editingUser.role && editStatus === editingUser.status) {
+      toast.error("No changes made");
+      return;
+    }
+
+    try {
+      setIsSavingEdit(true);
+      const body: Record<string, string> = {};
+      if (editRole !== editingUser.role) body.role = editRole;
+      if (editStatus !== editingUser.status) body.status = editStatus;
+
+      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update user");
+      }
+
+      toast.success("User updated successfully");
+      setIsEditModalOpen(false);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update user");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   return (
     <section className="workflow-stack">
       <div className="card">
@@ -147,14 +239,18 @@ export default function AdminUsersPage() {
             <p>Manage system users, roles, and permissions</p>
           </div>
           <div className="card-controls">
-            <Link
-              href="/admin/users/invite"
-              className="app-button is-primary"
+            <AppButton
+              variant="primary"
+              onClick={() => {
+                setInviteEmail("");
+                setInviteRole("member");
+                setInviteStatus(null);
+                setIsInviteModalOpen(true);
+              }}
+              startIcon={<FiPlus />}
             >
-              <span className="app-button-content">
-                <FiPlus /> Invite User
-              </span>
-            </Link>
+              Invite User
+            </AppButton>
           </div>
         </div>
 
@@ -269,15 +365,15 @@ export default function AdminUsersPage() {
                     </td>
                     <td>
                       <div className="button-row">
-                        <Link
-                          href={`/admin/users/${user.id}`}
+                        <button
+                          onClick={() => openEditModal(user)}
                           className="text-link"
                           title="Edit user"
                         >
                           <span className="icon-with-label">
                             <FiEdit2 /> Edit
                           </span>
-                        </Link>
+                        </button>
                         <button
                           onClick={() => handleDeleteUser(user.id)}
                           className="text-link"
@@ -325,6 +421,141 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={isInviteModalOpen}
+        onClose={() => {
+          setIsInviteModalOpen(false);
+          setInviteStatus(null);
+        }}
+        title="Invite New User"
+      >
+        <div className="form-stack" style={{ marginTop: 0 }}>
+          <div className="field-wrap">
+            <label htmlFor="invite-email" className="field-label">Email Address</label>
+            <div style={{ position: "relative" }}>
+              <FiMail
+                style={{ position: "absolute", left: "0.72rem", top: "0.7rem", color: "var(--text-muted)" }}
+              />
+              <input
+                id="invite-email"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="user@example.com"
+                className="text-input"
+                style={{ paddingLeft: "2.2rem" }}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="field-wrap">
+            <label htmlFor="invite-role" className="field-label">Role</label>
+            <select
+              id="invite-role"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
+              className="filter-input"
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+            <p className="field-note">
+              {inviteRole === "admin"
+                ? "Admins can manage users and system settings"
+                : "Members have basic access to projects and tasks"}
+            </p>
+          </div>
+
+          <AppButton
+            onClick={handleInvite}
+            fullWidth
+            disabled={isInviting}
+            isLoading={isInviting}
+            loadingLabel="Sending..."
+            startIcon={<FiUserPlus />}
+          >
+            Send Invitation
+          </AppButton>
+
+          <InlineStatus
+            tone={inviteStatus?.tone ?? "info"}
+            message={inviteStatus?.message ?? null}
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingUser(null);
+        }}
+        title={editingUser ? `Edit ${editingUser.name || editingUser.email}` : "Edit User"}
+      >
+        {editingUser && (
+          <div className="form-stack" style={{ marginTop: 0 }}>
+            <div className="field-wrap">
+              <label className="field-label">Name</label>
+              <p className="text-input" style={{ cursor: "default", background: "var(--surface-muted)" }}>
+                {editingUser.name || "\u2014"}
+              </p>
+            </div>
+
+            <div className="field-wrap">
+              <label className="field-label">Email</label>
+              <p className="text-input" style={{ cursor: "default", background: "var(--surface-muted)" }}>
+                {editingUser.email}
+              </p>
+            </div>
+
+            <div className="field-wrap">
+              <label htmlFor="edit-role" className="field-label">Role</label>
+              <select
+                id="edit-role"
+                value={editRole}
+                onChange={(e) => setEditRole(e.target.value as "admin" | "member")}
+                className="filter-input"
+              >
+                <option value="admin">Admin</option>
+                <option value="member">Member</option>
+              </select>
+              <p className="field-note">
+                Current: <strong>{editingUser.role}</strong>
+              </p>
+            </div>
+
+            <div className="field-wrap">
+              <label htmlFor="edit-status" className="field-label">Status</label>
+              <select
+                id="edit-status"
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value as "active" | "inactive" | "pending")}
+                className="filter-input"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="pending">Pending</option>
+              </select>
+              <p className="field-note">
+                Current: <strong>{editingUser.status}</strong>
+              </p>
+            </div>
+
+            <AppButton
+              onClick={handleEditSave}
+              fullWidth
+              disabled={isSavingEdit || (editRole === editingUser.role && editStatus === editingUser.status)}
+              isLoading={isSavingEdit}
+              loadingLabel="Saving..."
+              startIcon={<FiSave />}
+            >
+              Save Changes
+            </AppButton>
+          </div>
+        )}
+      </Modal>
     </section>
   );
 }

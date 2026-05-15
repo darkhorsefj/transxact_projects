@@ -7,6 +7,7 @@ import type { ReactElement } from "react";
 import { toast } from "sonner";
 import { FiArrowLeft, FiEdit2, FiTrash2, FiHeart, FiEye } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
+import { useSseRefresh } from "@/app/ui/useSseRefresh";
 import {
   addIssueComment,
   deleteIssueComment,
@@ -46,6 +47,7 @@ function issueStatusLabel(status: IssueDetailItem["status"]): string {
 }
 
 export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactElement {
+  useSseRefresh();
   const router = useRouter();
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isFollowing, setIsFollowing] = useState(issue.isFollowing);

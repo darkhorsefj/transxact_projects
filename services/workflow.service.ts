@@ -8,6 +8,7 @@ import {
   phase,
   project,
   task,
+  taskCommentReadState,
   type TaskStatus,
   user,
   workItemComment,
@@ -23,6 +24,7 @@ import {
   resolveEntityNotificationRecipients,
   toggleEntitySubscription,
 } from "./notification.service";
+import { publishRealtimeRefresh, publishRealtimeRefreshAll } from "./realtime.service";
 import { requireSessionUser } from "./session.service";
 
 const BACKLOG_PHASE_NAME = "Backlog";
@@ -78,6 +80,7 @@ export interface TaskWorkflowItem {
   assigneeName: string | null;
   isFollowing: boolean;
   comments: WorkItemCommentThreadItem[];
+  unreadCommentCount: number;
 }
 
 export interface IssueWorkflowItem {
@@ -163,15 +166,6 @@ function normalizeCommentBody(rawCommentBody: string): string {
   }
 
   return normalized;
-}
-
-function buildCommentPreview(commentBody: string): string {
-  const maxPreviewLength = 140;
-  if (commentBody.length <= maxPreviewLength) {
-    return commentBody;
-  }
-
-  return `${commentBody.slice(0, maxPreviewLength - 1)}…`;
 }
 
 function parseDueDate(dueOn: string): string {
@@ -495,6 +489,44 @@ export async function listProjectWorkflowData(): Promise<{
   return { projects };
 }
 
+async function listTaskCommentReadAtByTaskId(
+  taskIds: number[],
+  userId: number,
+): Promise<Map<number, string | null>> {
+  const uniqueTaskIds = [...new Set(taskIds)].filter((id) => id > 0);
+  if (uniqueTaskIds.length === 0 || userId <= 0) {
+    return new Map();
+  }
+
+  const rows = await db
+    .select({
+      taskId: taskCommentReadState.taskId,
+      lastReadAt: taskCommentReadState.lastReadAt,
+    })
+    .from(taskCommentReadState)
+    .where(
+      and(
+        eq(taskCommentReadState.userId, userId),
+        inArray(taskCommentReadState.taskId, uniqueTaskIds),
+      ),
+    );
+
+  const map = new Map<number, string | null>();
+  for (const row of rows) {
+    map.set(row.taskId, row.lastReadAt);
+  }
+  return map;
+}
+
+function computeUnreadCommentCount(
+  comments: WorkItemCommentThreadItem[],
+  lastReadAt: string | null,
+): number {
+  if (!lastReadAt || comments.length === 0) return 0;
+  const readTime = new Date(lastReadAt).getTime();
+  return comments.filter((c) => new Date(c.createdAt).getTime() > readTime).length;
+}
+
 export async function listTaskWorkflowData(): Promise<TaskWorkflowData> {
   const currentUser = await requireSessionUser();
   await ensureDbSchema();
@@ -536,15 +568,27 @@ export async function listTaskWorkflowData(): Promise<TaskWorkflowData> {
     tasks.map((item) => item.id),
   );
 
+  const readAtByTaskId = await listTaskCommentReadAtByTaskId(
+    tasks.map((item) => item.id),
+    currentUser.id,
+  );
+
   return {
     currentUserId: currentUser.id,
     projects,
     assignees,
-    tasks: tasks.map((item) => ({
-      ...item,
-      isFollowing: followMap.get(item.id) ?? false,
-      comments: commentsByTaskId.get(item.id) ?? [],
-    })),
+    tasks: tasks.map((item) => {
+      const taskComments = commentsByTaskId.get(item.id) ?? [];
+      return {
+        ...item,
+        isFollowing: followMap.get(item.id) ?? false,
+        comments: taskComments,
+        unreadCommentCount: computeUnreadCommentCount(
+          taskComments,
+          readAtByTaskId.get(item.id) ?? null,
+        ),
+      };
+    }),
   };
 }
 
@@ -625,6 +669,7 @@ export async function createProject(projectName: string): Promise<void> {
   }
 
   await ensureEntitySubscriptions("project", insertedRows[0].id, [currentUser.id]);
+  publishRealtimeRefreshAll();
 }
 
 export async function archiveProject(projectId: number): Promise<void> {
@@ -665,12 +710,13 @@ export async function archiveProject(projectId: number): Promise<void> {
     category: "project_activity",
     type: "project_archived",
     title: `Project archived: ${projectRows[0].name}`,
-    body: "A project was archived.",
+    body: `${currentUser.name ?? "An admin"} archived this project.`,
     href: "/projects",
     sourceType: "project",
     sourceId: projectId,
     emailDelayMinutes: 0,
   });
+  publishRealtimeRefreshAll();
 }
 
 export async function createTask(input: CreateTaskInput): Promise<void> {
@@ -722,13 +768,16 @@ export async function createTask(input: CreateTaskInput): Promise<void> {
     actorUserId: currentUser.id,
     category: "task_activity",
     type: "task_created",
-    title: `Task created: ${title}`,
-    body: description ?? `Due ${input.dueOn}`,
+    title: `${currentUser.name ?? "Someone"} created task: ${title}`,
+    body: description
+      ? `${description} | Due ${input.dueOn}`
+      : `Due ${input.dueOn}`,
     href: `/tasks?taskId=${createdTaskId}`,
     sourceType: "task",
     sourceId: createdTaskId,
     emailDelayMinutes: 0,
   });
+  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function advanceTaskStatus(taskId: number): Promise<TaskStatus> {
@@ -780,12 +829,13 @@ export async function advanceTaskStatus(taskId: number): Promise<TaskStatus> {
     category: "task_activity",
     type: "task_status_changed",
     title: `Task status updated: ${rows[0].title}`,
-    body: `Task moved to ${nextStatus.replace("_", " ")}.`,
+    body: `${currentUser.name ?? "Someone"} moved this task from ${rows[0].status.replace("_", " ")} to ${nextStatus.replace("_", " ")}.`,
     href: `/tasks?taskId=${taskId}`,
     sourceType: "task",
     sourceId: taskId,
     emailDelayMinutes: 0,
   });
+  publishRealtimeRefresh([currentUser.id, ...recipients]);
 
   return nextStatus;
 }
@@ -846,13 +896,44 @@ export async function addTaskComment(taskId: number, rawCommentBody: string): Pr
     actorUserId: currentUser.id,
     category: "task_activity",
     type: "task_comment_added",
-    title: `New task comment: ${rows[0].title}`,
-    body: buildCommentPreview(body),
+    title: `${currentUser.name ?? "Someone"} commented on: ${rows[0].title}`,
+    body,
     href: `/tasks?taskId=${taskId}`,
     sourceType: "task",
     sourceId: taskId,
     emailDelayMinutes: 0,
   });
+  publishRealtimeRefresh([currentUser.id, ...recipients]);
+}
+
+export async function markTaskCommentsRead(taskId: number): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  const nowIso = new Date().toISOString();
+  const existing = await db
+    .select({ id: taskCommentReadState.id })
+    .from(taskCommentReadState)
+    .where(
+      and(
+        eq(taskCommentReadState.userId, currentUser.id),
+        eq(taskCommentReadState.taskId, taskId),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(taskCommentReadState)
+      .set({ lastReadAt: nowIso })
+      .where(eq(taskCommentReadState.id, existing[0].id));
+  } else {
+    await db.insert(taskCommentReadState).values({
+      userId: currentUser.id,
+      taskId,
+      lastReadAt: nowIso,
+    });
+  }
 }
 
 export async function createIssue(input: CreateIssueInput): Promise<void> {
@@ -922,13 +1003,14 @@ export async function createIssue(input: CreateIssueInput): Promise<void> {
     actorUserId: currentUser.id,
     category: "issue_activity",
     type: "issue_created",
-    title: `Issue created: ${title}`,
-    body: description ?? "A new issue was created.",
+    title: `${currentUser.name ?? "Someone"} created issue: ${title}`,
+    body: description ?? "",
     href: `/issues?issueId=${createdIssueId}`,
     sourceType: "issue",
     sourceId: createdIssueId,
     emailDelayMinutes: 0,
   });
+  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function advanceIssueStatus(issueId: number): Promise<IssueStatus> {
@@ -980,12 +1062,13 @@ export async function advanceIssueStatus(issueId: number): Promise<IssueStatus> 
     category: "issue_activity",
     type: "issue_status_changed",
     title: `Issue status updated: ${rows[0].title}`,
-    body: `Issue moved to ${nextStatus.replace("_", " ")}.`,
+    body: `${currentUser.name ?? "Someone"} moved this issue from ${rows[0].status.replace("_", " ")} to ${nextStatus.replace("_", " ")}.`,
     href: `/issues?issueId=${issueId}`,
     sourceType: "issue",
     sourceId: issueId,
     emailDelayMinutes: 0,
   });
+  publishRealtimeRefresh([currentUser.id, ...recipients]);
 
   return nextStatus;
 }
@@ -1049,13 +1132,14 @@ export async function addIssueComment(
     actorUserId: currentUser.id,
     category: "issue_activity",
     type: "issue_comment_added",
-    title: `New issue comment: ${rows[0].title}`,
-    body: buildCommentPreview(body),
+    title: `${currentUser.name ?? "Someone"} commented on issue: ${rows[0].title}`,
+    body,
     href: `/issues?issueId=${issueId}`,
     sourceType: "issue",
     sourceId: issueId,
     emailDelayMinutes: 0,
   });
+  publishRealtimeRefresh([currentUser.id, ...recipients]);
 }
 
 export async function editTaskComment(
@@ -1094,6 +1178,23 @@ export async function editTaskComment(
     .update(workItemComment)
     .set({ body, updatedAt: nowIso })
     .where(eq(workItemComment.id, commentId));
+
+  const commentRow = rows[0];
+  if (commentRow.taskId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "task",
+      entityId: commentRow.taskId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  } else if (commentRow.issueId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "issue",
+      entityId: commentRow.issueId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  }
 }
 
 export async function deleteTaskComment(commentId: number): Promise<void> {
@@ -1108,6 +1209,8 @@ export async function deleteTaskComment(commentId: number): Promise<void> {
     .select({
       id: workItemComment.id,
       createdByUserId: workItemComment.createdByUserId,
+      taskId: workItemComment.taskId,
+      issueId: workItemComment.issueId,
     })
     .from(workItemComment)
     .where(and(eq(workItemComment.id, commentId), isNull(workItemComment.deletedAt)))
@@ -1126,6 +1229,23 @@ export async function deleteTaskComment(commentId: number): Promise<void> {
     .update(workItemComment)
     .set({ deletedAt: nowIso })
     .where(eq(workItemComment.id, commentId));
+
+  const commentRow = rows[0];
+  if (commentRow.taskId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "task",
+      entityId: commentRow.taskId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  } else if (commentRow.issueId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "issue",
+      entityId: commentRow.issueId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  }
 }
 
 export async function editIssueComment(
@@ -1164,6 +1284,23 @@ export async function editIssueComment(
     .update(workItemComment)
     .set({ body, updatedAt: nowIso })
     .where(eq(workItemComment.id, commentId));
+
+  const commentRow = rows[0];
+  if (commentRow.taskId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "task",
+      entityId: commentRow.taskId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  } else if (commentRow.issueId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "issue",
+      entityId: commentRow.issueId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  }
 }
 
 export async function deleteIssueComment(commentId: number): Promise<void> {
@@ -1178,6 +1315,8 @@ export async function deleteIssueComment(commentId: number): Promise<void> {
     .select({
       id: workItemComment.id,
       createdByUserId: workItemComment.createdByUserId,
+      taskId: workItemComment.taskId,
+      issueId: workItemComment.issueId,
     })
     .from(workItemComment)
     .where(and(eq(workItemComment.id, commentId), isNull(workItemComment.deletedAt)))
@@ -1196,27 +1335,47 @@ export async function deleteIssueComment(commentId: number): Promise<void> {
     .update(workItemComment)
     .set({ deletedAt: nowIso })
     .where(eq(workItemComment.id, commentId));
+
+  const commentRow = rows[0];
+  if (commentRow.taskId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "task",
+      entityId: commentRow.taskId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  } else if (commentRow.issueId) {
+    const recipients = await resolveEntityNotificationRecipients({
+      entityType: "issue",
+      entityId: commentRow.issueId,
+      actorUserId: currentUser.id,
+    });
+    publishRealtimeRefresh([currentUser.id, ...recipients]);
+  }
 }
 
 export async function setProjectFollow(
   projectId: number,
   follow: boolean,
 ): Promise<void> {
-  await requireSessionUser();
+  const currentUser = await requireSessionUser();
   await requireActiveProject(projectId);
   await toggleEntitySubscription("project", projectId, follow);
+  publishRealtimeRefresh([currentUser.id]);
 }
 
 export async function setTaskFollow(taskId: number, follow: boolean): Promise<void> {
-  await requireSessionUser();
+  const currentUser = await requireSessionUser();
   await requireActiveTask(taskId);
   await toggleEntitySubscription("task", taskId, follow);
+  publishRealtimeRefresh([currentUser.id]);
 }
 
 export async function setIssueFollow(issueId: number, follow: boolean): Promise<void> {
-  await requireSessionUser();
+  const currentUser = await requireSessionUser();
   await requireActiveIssue(issueId);
   await toggleEntitySubscription("issue", issueId, follow);
+  publishRealtimeRefresh([currentUser.id]);
 }
 
 export interface TaskDetailItem {
@@ -1393,4 +1552,11 @@ export async function getIssueDetailById(issueId: number): Promise<IssueDetailIt
     isFollowing,
     comments: issueComments,
   };
+}
+
+export async function getTaskComments(taskId: number): Promise<WorkItemCommentThreadItem[]> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+  const comments = await listTaskCommentsByTaskId([taskId], currentUser.id);
+  return comments.get(taskId) ?? [];
 }

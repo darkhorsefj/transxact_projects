@@ -7,7 +7,9 @@ import { toast } from "sonner";
 import { FiArchive, FiEye, FiEyeOff, FiPlus } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
+import Modal from "@/app/ui/modal";
 import TextField from "@/app/ui/textField";
+import { useSseRefresh } from "@/app/ui/useSseRefresh";
 import {
   archiveProject,
   createProject,
@@ -49,7 +51,9 @@ function validateProjectName(rawProjectName: string): string | undefined {
 export default function ProjectsWorkflowView({
   projects,
 }: ProjectsWorkflowViewProps): ReactElement {
+  useSseRefresh();
   const router = useRouter();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isArchivingId, setIsArchivingId] = useState<number | null>(null);
@@ -79,11 +83,8 @@ export default function ProjectsWorkflowView({
     try {
       await createProject(projectName);
       setProjectName("");
-      setStatus({
-        tone: "success",
-        message: "Project created and ready for task and issue tracking.",
-      });
       toast.success("Project created");
+      setIsModalOpen(false);
       router.refresh();
     } catch (error) {
       const message =
@@ -157,45 +158,16 @@ export default function ProjectsWorkflowView({
       <section className="card">
         <div className="card-header">
           <div>
-            <h2>Create project</h2>
-            <p>Start a new delivery stream and organize downstream work.</p>
-          </div>
-        </div>
-        <div className="workflow-form">
-          <TextField
-            id="projectName"
-            label="Project name"
-            placeholder="Customer portal refresh"
-            value={projectName}
-            onChange={(event) => {
-              setProjectName(event.target.value);
-              if (status?.tone === "error") {
-                setStatus(null);
-              }
-            }}
-            disabled={isCreating}
-            required
-          />
-          <AppButton
-            onClick={handleCreateProject}
-            isLoading={isCreating}
-            loadingLabel="Creating..."
-            startIcon={<FiPlus aria-hidden="true" />}
-          >
-            Create project
-          </AppButton>
-        </div>
-        <InlineStatus
-          tone={status?.tone ?? "info"}
-          message={status?.message ?? null}
-        />
-      </section>
-
-      <section className="card">
-        <div className="card-header">
-          <div>
             <h2>Project workflow board</h2>
             <p>Review project-level load and archive finished workstreams.</p>
+          </div>
+          <div className="card-controls">
+            <AppButton
+              onClick={() => setIsModalOpen(true)}
+              startIcon={<FiPlus aria-hidden="true" />}
+            >
+              Create project
+            </AppButton>
           </div>
         </div>
 
@@ -262,6 +234,44 @@ export default function ProjectsWorkflowView({
           </table>
         </div>
       </section>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setProjectName("");
+          setStatus(null);
+        }}
+        title="Create project"
+      >
+        <div className="workflow-form">
+          <TextField
+            id="projectName"
+            label="Project name"
+            placeholder="Customer portal refresh"
+            value={projectName}
+            onChange={(event) => {
+              setProjectName(event.target.value);
+              if (status?.tone === "error") {
+                setStatus(null);
+              }
+            }}
+            disabled={isCreating}
+            required
+          />
+          <AppButton
+            onClick={handleCreateProject}
+            isLoading={isCreating}
+            loadingLabel="Creating..."
+            startIcon={<FiPlus aria-hidden="true" />}
+          >
+            Create project
+          </AppButton>
+        </div>
+        <InlineStatus
+          tone={status?.tone ?? "info"}
+          message={status?.message ?? null}
+        />
+      </Modal>
     </section>
   );
 }

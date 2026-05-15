@@ -7,6 +7,7 @@ import type { ReactElement } from "react";
 import { toast } from "sonner";
 import { FiArrowLeft, FiEdit2, FiTrash2, FiHeart, FiEye } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
+import { useSseRefresh } from "@/app/ui/useSseRefresh";
 import {
   createTaskAction,
   deleteTaskAction,
@@ -22,6 +23,7 @@ import {
 
 interface TaskDetailViewProps {
   task: TaskDetailItem;
+  hideBackLink?: boolean;
 }
 
 function formatDateTime(isoDate: string): string {
@@ -54,7 +56,35 @@ function taskStatusLabel(status: TaskDetailItem["status"]): string {
   return "Completed";
 }
 
-export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElement {
+const AVATAR_COLORS = [
+  "var(--brand)",
+  "#e07c3c",
+  "#4c9a5e",
+  "#8b5cf6",
+  "#e74c3c",
+  "#3498db",
+  "#1abc9c",
+  "#9b59b6",
+];
+
+function getInitials(label: string): string {
+  const parts = label.split(/[\s.@_-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return label.slice(0, 2).toUpperCase();
+}
+
+function getAvatarColor(label: string): string {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) {
+    hash = label.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+export default function TaskDetailView({ task, hideBackLink = false }: TaskDetailViewProps): ReactElement {
+  useSseRefresh();
   const router = useRouter();
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isFollowing, setIsFollowing] = useState(task.isFollowing);
@@ -198,9 +228,11 @@ export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElem
   return (
     <section className="workflow-stack">
       {/* Back Navigation */}
-      <Link href="/tasks" className="text-link" style={{ marginBottom: 0 }}>
-        <span className="icon-with-label"><FiArrowLeft /> Back</span>
-      </Link>
+      {!hideBackLink && (
+        <Link href="/tasks" className="text-link" style={{ marginBottom: 0 }}>
+          <span className="icon-with-label"><FiArrowLeft /> Back</span>
+        </Link>
+      )}
 
       {/* Main Content */}
       <section className="card">
@@ -211,21 +243,12 @@ export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElem
           </div>
         </div>
 
-        <div className="workflow-form">
-          {/* Metadata Row 1 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "2rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {/* Metadata Row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "1rem" }}>
             <div className="field-wrap">
               <label className="field-label">Status</label>
               <p style={{ fontWeight: "500" }}>{taskStatusLabel(task.status)}</p>
-              <AppButton
-                onClick={() => void handleAdvanceTask()}
-                disabled={task.status === "completed" || isAdvancing}
-                isLoading={isAdvancing}
-                loadingLabel="Updating..."
-                style={{ marginTop: "0.5rem", width: "100%" }}
-              >
-                Next Step
-              </AppButton>
             </div>
 
             <div className="field-wrap">
@@ -237,18 +260,33 @@ export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElem
               <label className="field-label">Due Date</label>
               <p>{formatDueDate(task.dueAt)}</p>
             </div>
+
+            <div className="field-wrap">
+              <label className="field-label">Follow</label>
+              <AppButton
+                onClick={() => void handleToggleFollow()}
+                disabled={isTogglingFollow}
+                isLoading={isTogglingFollow}
+                loadingLabel={isFollowing ? "Unfollowing..." : "Following..."}
+                startIcon={isFollowing ? <FiHeart aria-hidden="true" /> : <FiEye aria-hidden="true" />}
+                variant="ghost"
+                style={{ alignSelf: "start" }}
+              >
+                {isFollowing ? "Following" : "Follow"}
+              </AppButton>
+            </div>
           </div>
 
           {/* Description */}
           {task.description && (
-            <div className="field-wrap workflow-span-all">
+            <div className="field-wrap">
               <label className="field-label">Description</label>
               <p>{task.description}</p>
             </div>
           )}
 
           {/* Meta Info */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <div className="field-wrap">
               <label className="field-label">Created</label>
               <p>
@@ -257,16 +295,16 @@ export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElem
             </div>
 
             <div className="field-wrap">
-              <label className="field-label">Actions</label>
+              <label className="field-label">Progress</label>
               <AppButton
-                onClick={() => void handleToggleFollow()}
-                disabled={isTogglingFollow}
-                isLoading={isTogglingFollow}
-                loadingLabel={isFollowing ? "Unfollowing..." : "Following..."}
-                startIcon={isFollowing ? <FiHeart aria-hidden="true" /> : <FiEye aria-hidden="true" />}
-                style={{ width: "100%" }}
+                onClick={() => void handleAdvanceTask()}
+                disabled={task.status === "completed" || isAdvancing}
+                isLoading={isAdvancing}
+                loadingLabel="Updating..."
+                variant="ghost"
+                style={{ alignSelf: "start" }}
               >
-                {isFollowing ? "Following" : "Follow"}
+                {task.status === "not_started" ? "Start" : task.status === "in_progress" ? "Mark Complete" : "Completed"}
               </AppButton>
             </div>
           </div>
@@ -283,109 +321,109 @@ export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElem
 
         <div className="workflow-stack">
           {/* Comment Thread */}
-          <div className="messages-thread">
+          <div className="slack-thread">
             {task.comments.length === 0 ? (
               <p className="empty-row">No comments yet.</p>
             ) : (
               task.comments.map((comment) => (
-                <article
-                  key={comment.id}
-                  className={`message-bubble ${comment.isOwn ? "is-own" : ""}`}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                    <div style={{ flex: 1 }}>
-                      <p className="message-meta">
-                        <strong>{comment.authorLabel}</strong> · {formatDateTime(comment.createdAt)}
-                        {comment.isEdited ? " · edited" : ""}
-                      </p>
-                      {editingCommentId === comment.id ? (
+                <div key={comment.id} className="slack-message">
+                  <div
+                    className="slack-avatar"
+                    style={{ background: getAvatarColor(comment.authorLabel) }}
+                  >
+                    {getInitials(comment.authorLabel)}
+                  </div>
+                  <div className="slack-body">
+                    <div className="slack-header">
+                      <span className="slack-author">{comment.authorLabel}</span>
+                      <span className="slack-timestamp">
+                        {formatDateTime(comment.createdAt)}
+                        {comment.isEdited ? " (edited)" : ""}
+                      </span>
+                    </div>
+                    {editingCommentId === comment.id ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginTop: "0.3rem" }}>
                         <textarea
                           className="text-input"
-                          style={{ marginTop: "0.5rem" }}
                           value={editingCommentBody}
                           onChange={(e) => setEditingCommentBody(e.target.value)}
                           disabled={isEditingCommentId === comment.id}
                         />
-                      ) : (
-                        <p>{comment.body}</p>
-                      )}
-                    </div>
-                    {comment.isOwn && (
-                      <div className="workflow-actions" style={{ marginLeft: "1rem" }}>
-                        {editingCommentId === comment.id ? (
-                          <>
-                            <AppButton
-                              variant="ghost"
-                              onClick={() => void handleSaveEditComment(comment.id)}
-                              disabled={isEditingCommentId === comment.id}
-                              isLoading={isEditingCommentId === comment.id}
-                              loadingLabel="Saving..."
-                            >
-                              Save
-                            </AppButton>
-                            <AppButton
-                              variant="ghost"
-                              onClick={() => {
-                                setEditingCommentId(null);
-                                setEditingCommentBody("");
-                              }}
-                              disabled={isEditingCommentId === comment.id}
-                            >
-                              Cancel
-                            </AppButton>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleEditComment(comment.id, comment.body)}
-                              disabled={isDeletingCommentId === comment.id}
-                              className="text-link-button"
-                              title="Edit comment"
-                            >
-                              <FiEdit2 size={16} />
-                            </button>
-                            <button
-                              onClick={() => void handleDeleteComment(comment.id)}
-                              disabled={isDeletingCommentId === comment.id}
-                              className="text-link-button"
-                              style={{ color: "var(--error)" }}
-                              title="Delete comment"
-                            >
-                              <FiTrash2 size={16} />
-                            </button>
-                          </>
-                        )}
+                        <div className="button-row">
+                          <AppButton
+                            variant="ghost"
+                            onClick={() => void handleSaveEditComment(comment.id)}
+                            disabled={isEditingCommentId === comment.id}
+                            isLoading={isEditingCommentId === comment.id}
+                            loadingLabel="Saving..."
+                          >
+                            Save
+                          </AppButton>
+                          <AppButton
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingCommentId(null);
+                              setEditingCommentBody("");
+                            }}
+                            disabled={isEditingCommentId === comment.id}
+                          >
+                            Cancel
+                          </AppButton>
+                        </div>
                       </div>
+                    ) : (
+                      <div className="slack-text">{comment.body}</div>
                     )}
                   </div>
-                </article>
+                  {comment.isOwn && editingCommentId !== comment.id && (
+                    <div className="slack-actions">
+                      <button
+                        onClick={() => handleEditComment(comment.id, comment.body)}
+                        className="slack-action-btn"
+                        title="Edit"
+                      >
+                        <FiEdit2 size={13} />
+                      </button>
+                      <button
+                        onClick={() => void handleDeleteComment(comment.id)}
+                        disabled={isDeletingCommentId === comment.id}
+                        className="slack-action-btn is-danger"
+                        title="Delete"
+                      >
+                        <FiTrash2 size={13} />
+                      </button>
+                    </div>
+                  )}
+                  {comment.isOwn && editingCommentId === comment.id && null}
+                </div>
               ))
             )}
           </div>
 
-          {/* Add Comment Form */}
-          <div className="workflow-form">
-            <div className="field-wrap workflow-span-all">
-              <label htmlFor="comment-input" className="field-label">
-                Add Comment
-              </label>
-              <textarea
-                id="comment-input"
-                className="text-input workflow-textarea"
-                value={commentDraft}
-                onChange={(e) => setCommentDraft(e.target.value)}
-                disabled={isAddingComment}
-                placeholder="Share context or updates..."
-              />
-            </div>
-
+          {/* Add Comment Form - like Slack input bar */}
+          <div className="slack-input-bar">
+            <textarea
+              id="comment-input"
+              value={commentDraft}
+              onChange={(e) => setCommentDraft(e.target.value)}
+              disabled={isAddingComment}
+              placeholder="Write a message..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (commentDraft.trim()) {
+                    void handleAddComment();
+                  }
+                }
+              }}
+            />
             <AppButton
               onClick={() => void handleAddComment()}
               disabled={isAddingComment || !commentDraft.trim()}
               isLoading={isAddingComment}
-              loadingLabel="Adding..."
+              loadingLabel="Sending..."
             >
-              Post Comment
+              Send
             </AppButton>
           </div>
         </div>
@@ -400,6 +438,38 @@ export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElem
         </div>
 
         <div className="workflow-stack">
+          {/* Add Action Form - at the top */}
+          <div className="workflow-form">
+            <div className="field-wrap" style={{ flex: 1 }}>
+              <input
+                id="action-name-input"
+                className="text-input"
+                value={actionName}
+                onChange={(e) => setActionName(e.target.value)}
+                disabled={isAddingAction}
+                placeholder="Action name"
+              />
+            </div>
+            <div className="field-wrap" style={{ flex: 1 }}>
+              <input
+                id="action-desc-input"
+                className="text-input"
+                value={actionDescription}
+                onChange={(e) => setActionDescription(e.target.value)}
+                disabled={isAddingAction}
+                placeholder="Description (optional)"
+              />
+            </div>
+            <AppButton
+              onClick={() => void handleAddAction()}
+              disabled={isAddingAction || !actionName.trim()}
+              isLoading={isAddingAction}
+              loadingLabel="Adding..."
+            >
+              Add
+            </AppButton>
+          </div>
+
           {task.actions.length === 0 ? (
             <p className="empty-row">No actions yet.</p>
           ) : (
@@ -410,7 +480,7 @@ export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElem
                     <th scope="col">Name</th>
                     <th scope="col">Description</th>
                     <th scope="col">Created By</th>
-                    <th scope="col">Actions</th>
+                    <th scope="col"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -438,48 +508,6 @@ export default function TaskDetailView({ task }: TaskDetailViewProps): ReactElem
               </table>
             </div>
           )}
-
-          {/* Add Action Form */}
-          <div className="workflow-form">
-            <div className="field-wrap workflow-span-all">
-              <label htmlFor="action-name-input" className="field-label">
-                Action Name
-              </label>
-              <input
-                id="action-name-input"
-                className="text-input"
-                value={actionName}
-                onChange={(e) => setActionName(e.target.value)}
-                disabled={isAddingAction}
-                placeholder="e.g. Review pull request"
-              />
-            </div>
-
-            <div className="field-wrap workflow-span-all">
-              <label htmlFor="action-desc-input" className="field-label">
-                Description <span className="field-note">(optional)</span>
-              </label>
-              <textarea
-                id="action-desc-input"
-                className="text-input workflow-textarea"
-                value={actionDescription}
-                onChange={(e) => setActionDescription(e.target.value)}
-                disabled={isAddingAction}
-                placeholder="Details about this action..."
-              />
-            </div>
-
-            <div className="button-row">
-              <AppButton
-                onClick={() => void handleAddAction()}
-                disabled={isAddingAction || !actionName.trim()}
-                isLoading={isAddingAction}
-                loadingLabel="Adding..."
-              >
-                Add Action
-              </AppButton>
-            </div>
-          </div>
         </div>
       </section>
     </section>

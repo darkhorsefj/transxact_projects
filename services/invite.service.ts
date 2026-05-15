@@ -104,15 +104,15 @@ export async function createInvite(
 
   const link = inviteLink(token);
   const content = createUnifiedEmailContent({
-    headline: "You're invited to Transxact Projects",
+    headline: "You're invited to Transxact",
     messageLines: [
-      "An admin invited you to join the workspace.",
-      "Use the button below to complete your registration.",
+      "An admin has invited you to join the workspace.",
+      "Click the button below to complete your registration and get started.",
       `This invite expires in ${INVITE_EXPIRY_HOURS} hours.`,
     ],
     actionLabel: "Complete registration",
     actionUrl: link,
-    footerLines: ["If you were not expecting this invite, you can ignore this email."],
+    footerLines: ["If you were not expecting this invite, you can safely ignore this email."],
     previewText: "Complete your registration to join Transxact Projects",
   });
 

@@ -1,7 +1,13 @@
 "use server";
 
 import db, { ensureDbSchema } from "@/db/connection";
-import { user, auditLog, type AuditLogAction, type UserRole, type UserStatus } from "@/db/schema";
+import {
+  user,
+  auditLog,
+  type AuditLogAction,
+  type UserRole,
+  type UserStatus,
+} from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { sendEmail, createUnifiedEmailContent } from "./email.service";
 
@@ -17,7 +23,7 @@ interface UserListFilters extends PaginationParams {
 }
 
 interface UserListResult {
-  users: typeof user.$inferSelect[];
+  users: (typeof user.$inferSelect)[];
   total: number;
   page: number;
   limit: number;
@@ -59,7 +65,9 @@ async function logAuditAction(
   });
 }
 
-export async function listUsers(filters: UserListFilters): Promise<UserListResult> {
+export async function listUsers(
+  filters: UserListFilters,
+): Promise<UserListResult> {
   await ensureDbSchema();
 
   const page = Math.max(1, filters.page || 1);
@@ -111,7 +119,9 @@ export async function listUsers(filters: UserListFilters): Promise<UserListResul
   };
 }
 
-export async function getUserById(userId: number): Promise<typeof user.$inferSelect | null> {
+export async function getUserById(
+  userId: number,
+): Promise<typeof user.$inferSelect | null> {
   await ensureDbSchema();
 
   const result = await db
@@ -163,7 +173,12 @@ export async function updateUserRole(
   if (!updatedUser) throw new Error("Failed to fetch updated user");
 
   // Send notification email
-  await sendRoleChangeEmail(updatedUser.email, updatedUser.name || "User", oldRole, newRole);
+  await sendRoleChangeEmail(
+    updatedUser.email,
+    updatedUser.name || "User",
+    oldRole,
+    newRole,
+  );
 
   return updatedUser;
 }
@@ -204,7 +219,12 @@ export async function updateUserStatus(
   if (!updatedUser) throw new Error("Failed to fetch updated user");
 
   // Send notification email
-  await sendStatusChangeEmail(updatedUser.email, updatedUser.name || "User", oldStatus, newStatus);
+  await sendStatusChangeEmail(
+    updatedUser.email,
+    updatedUser.name || "User",
+    oldStatus,
+    newStatus,
+  );
 
   return updatedUser;
 }
@@ -247,14 +267,9 @@ export async function inviteUser(
 
   if (!newUser[0]) throw new Error("Failed to create user");
 
-  await logAuditAction(
-    adminUserId,
-    newUser[0].id,
-    "invited",
-    undefined,
-    role,
-    { invitedEmail: normalizedEmail },
-  );
+  await logAuditAction(adminUserId, newUser[0].id, "invited", undefined, role, {
+    invitedEmail: normalizedEmail,
+  });
 
   // Send invitation email
   await sendInvitationEmail(normalizedEmail, role);
@@ -329,13 +344,23 @@ export async function getAuditLogs(
   return { logs, total };
 }
 
-export async function exportUsersToCSV(filters?: Omit<UserListFilters, "page" | "limit">): Promise<string> {
+export async function exportUsersToCSV(
+  filters?: Omit<UserListFilters, "page" | "limit">,
+): Promise<string> {
   await ensureDbSchema();
 
   const result = await listUsers({ ...filters, page: 1, limit: 10000 });
   const users = result.users;
 
-  const headers = ["ID", "Name", "Email", "Role", "Status", "Created At", "Last Login"];
+  const headers = [
+    "ID",
+    "Name",
+    "Email",
+    "Role",
+    "Status",
+    "Created At",
+    "Last Login",
+  ];
   const rows = users.map((u) => [
     u.id,
     u.name || "",
@@ -371,13 +396,13 @@ async function sendRoleChangeEmail(
   newRole: string,
 ): Promise<void> {
   const content = createUnifiedEmailContent({
-    headline: "Your role has been updated",
+    headline: "Role update",
     messageLines: [
       `Hello ${userName},`,
-      `Your role has been changed from ${oldRole} to ${newRole}.`,
+      `Your role in Transxact has been changed from ${oldRole} to ${newRole}.`,
       "If you did not expect this change, please contact an administrator.",
     ],
-    previewText: `Your role has been updated to ${newRole}`,
+    previewText: `Your Transxact role has been updated to ${newRole}`,
   });
 
   await sendEmail({
@@ -394,14 +419,22 @@ async function sendStatusChangeEmail(
   oldStatus: string,
   newStatus: string,
 ): Promise<void> {
+  const isActive = newStatus === "active";
   const content = createUnifiedEmailContent({
-    headline: `Your account has been ${newStatus === "active" ? "activated" : "deactivated"}`,
-    messageLines: [
-      `Hello ${userName},`,
-      `Your account status has been changed from ${oldStatus} to ${newStatus}.`,
+    headline: isActive ? "Account activated" : "Account deactivated",
+    messageLines: isActive
+      ? [
+          `Hello ${userName},`,
+          "Your Transxact account has been activated. You can now sign in and use the workspace.",
+        ]
+      : [
+          `Hello ${userName},`,
+          "Your Transxact account has been deactivated. You will not be able to sign in until an admin reactivates your account.",
+        ],
+    footerLines: [
       "If you did not expect this change, please contact an administrator.",
     ],
-    previewText: `Your account status has been updated to ${newStatus}`,
+    previewText: `Your Transxact account has been ${newStatus}`,
   });
 
   await sendEmail({
@@ -416,13 +449,14 @@ async function sendInvitationEmail(email: string, role: string): Promise<void> {
   const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/auth/login`;
 
   const content = createUnifiedEmailContent({
-    headline: "You've been invited to Transxact",
+    headline: "You're invited to Transxact",
     messageLines: [
-      `You have been invited to join Transxact with ${role} privileges.`,
-      `Visit the link below to access your account:`,
-      loginUrl,
-      "If you did not expect this invitation, you can ignore this email.",
+      `You have been invited to join Transxact as ${role}.`,
+      "Click the button below to sign in and get started.",
     ],
+    actionLabel: "Sign in to Transxact",
+    actionUrl: loginUrl,
+    footerLines: ["If you were not expecting this invitation, you can ignore this email."],
     previewText: "You're invited to join Transxact",
   });
 

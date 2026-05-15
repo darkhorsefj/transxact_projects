@@ -28,7 +28,7 @@ const DEFAULT_CATEGORY_CHANNELS: Record<
 > = {
   direct_message: {
     inAppEnabled: true,
-    emailEnabled: true,
+    emailEnabled: false,
     label: "Direct messages",
   },
   project_activity: {
@@ -205,10 +205,10 @@ async function queueNotificationEmail(
     messageLines: [
       input.body ?? "You have a new update in Transxact Projects.",
     ],
-    actionLabel: "Open in app",
+    actionLabel: "View in Transxact",
     actionUrl: destinationUrl,
     footerLines: [
-      `Manage notification preferences: ${managePreferencesUrl}`,
+      `Adjust your notification preferences: ${managePreferencesUrl}`,
       `Category: ${input.category}`,
     ],
     previewText: input.body ?? input.title,
@@ -334,7 +334,7 @@ export async function createNotifications(
   }
 
   if ((input.emailDelayMinutes ?? 0) === 0) {
-    await processPendingEmailQueue(10);
+    processPendingEmailQueueWithWorker(10).catch(() => {});
   }
 }
 
@@ -450,6 +450,51 @@ export async function processPendingEmailQueue(
   }
 
   return { sent, failed, retried };
+}
+
+export async function processPendingEmailQueueWithWorker(
+  limit = 20,
+): Promise<{ sent: number; failed: number; retried: number }> {
+  const { Worker } = await import("worker_threads");
+  const path = await import("path");
+
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(path.resolve("workers/emailQueue.worker.ts"), {
+      execArgv: ["--import", "tsx"],
+    });
+
+    const timeout = setTimeout(() => {
+      worker.terminate();
+      reject(new Error("Email queue worker timed out after 60s"));
+    }, 60_000);
+
+    worker.on("message", (msg: any) => {
+      if (msg.type === "result") {
+        clearTimeout(timeout);
+        if (msg.touchedUserIds?.length > 0) {
+          publishRealtimeRefresh(msg.touchedUserIds);
+        }
+        resolve({ sent: msg.sent, failed: msg.failed, retried: msg.retried });
+      } else if (msg.type === "error") {
+        clearTimeout(timeout);
+        reject(new Error(msg.message));
+      }
+    });
+
+    worker.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+
+    worker.on("exit", (code) => {
+      clearTimeout(timeout);
+      if (code !== 0) {
+        reject(new Error(`Email queue worker exited with code ${code}`));
+      }
+    });
+
+    worker.postMessage({ type: "process", limit });
+  });
 }
 
 export async function listNotificationCenterData(): Promise<{
