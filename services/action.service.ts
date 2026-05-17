@@ -59,7 +59,7 @@ export async function createTaskAction(
   projectId: number,
   name: string,
   description?: string,
-): Promise<void> {
+): Promise<{ id: number }> {
   const currentUser = await requireSessionUser();
   await ensureDbSchema();
 
@@ -86,7 +86,9 @@ export async function createTaskAction(
     })
     .returning({ id: action.id });
 
-  if (insertedRows.length === 0) return;
+  if (insertedRows.length === 0) {
+    throw new Error("Unable to create action.");
+  }
 
   // Notify task subscribers
   const taskRows = await db
@@ -129,6 +131,8 @@ export async function createTaskAction(
       ],
     });
   }
+
+  return { id: insertedRows[0].id };
 }
 
 export async function deleteTaskAction(actionId: number): Promise<void> {

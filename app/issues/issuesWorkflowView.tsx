@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactElement } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { FiArrowLeft, FiChevronsRight, FiColumns, FiEye, FiEyeOff, FiList, FiPlus, FiSearch } from "react-icons/fi";
+import { FiArrowLeft, FiChevronsRight, FiColumns, FiEye, FiEyeOff, FiList, FiPaperclip, FiPlus, FiSearch } from "react-icons/fi";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
@@ -66,6 +66,8 @@ export default function IssuesWorkflowView({
   const [filterStatus, setFilterStatus] = useState("");
   const [filterProjectId, setFilterProjectId] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasProject = projects.length > 0;
 
@@ -132,13 +134,26 @@ export default function IssuesWorkflowView({
 
     setIsSubmitting(true);
     try {
-      await createIssue({
+      const result = await createIssue({
         projectId: Number(projectId),
         taskId: taskId ? Number(taskId) : undefined,
         assigneeUserId: assigneeUserId ? Number(assigneeUserId) : undefined,
         title: normalizedTitle,
         description,
       });
+
+      if (file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("issueId", String(result.id));
+        const uploadRes = await fetch("/api/uploads", { method: "POST", body: formData });
+        if (!uploadRes.ok) {
+          const data = await uploadRes.json();
+          throw new Error(data.error ?? "File upload failed. Issue was created.");
+        }
+      }
+
+      setFile(null);
       setTaskId("");
       setAssigneeUserId("");
       setTitle("");
@@ -507,6 +522,7 @@ export default function IssuesWorkflowView({
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
+          setFile(null);
           setStatus(null);
         }}
         title="Create issue"
@@ -580,6 +596,37 @@ export default function IssuesWorkflowView({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Optional troubleshooting context and expected behavior."
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1 col-span-2">
+            <span className="text-sm font-semibold text-muted-foreground">Attachment</span>
+            <div className="flex items-center gap-2">
+              <AppButton
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSubmitting}
+                startIcon={<FiPaperclip aria-hidden="true" />}
+              >
+                {file ? file.name : "Attach file"}
+              </AppButton>
+              {file && (
+                <AppButton
+                  variant="ghost"
+                  onClick={() => setFile(null)}
+                  disabled={isSubmitting}
+                >
+                  Remove
+                </AppButton>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              id="issue-file-input"
+              type="file"
+              className="hidden"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               disabled={isSubmitting}
             />
           </div>

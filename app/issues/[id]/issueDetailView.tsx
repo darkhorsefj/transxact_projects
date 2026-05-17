@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
 import { FiArrowLeft, FiEdit2, FiTrash2, FiHeart, FiEye, FiPaperclip, FiDownload } from "react-icons/fi";
@@ -54,6 +54,8 @@ export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactE
   const [isEditingCommentId, setIsEditingCommentId] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [commentFile, setCommentFile] = useState<File | null>(null);
+  const commentFileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(issue.title);
   const [editDescription, setEditDescription] = useState(issue.description ?? "");
@@ -128,7 +130,20 @@ export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactE
 
     setIsAddingComment(true);
     try {
-      await addIssueComment(issue.id, trimmedComment);
+      const result = await addIssueComment(issue.id, trimmedComment);
+
+      if (commentFile) {
+        const formData = new FormData();
+        formData.append("file", commentFile);
+        formData.append("commentId", String(result.id));
+        const uploadRes = await fetch("/api/uploads", { method: "POST", body: formData });
+        if (!uploadRes.ok) {
+          const data = await uploadRes.json();
+          throw new Error(data.error ?? "File upload failed. Comment was added.");
+        }
+      }
+
+      setCommentFile(null);
       setCommentDraft("");
       toast.success("Comment added");
       router.refresh();
@@ -426,7 +441,7 @@ export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactE
             <label htmlFor="comment-input" className="text-sm font-semibold text-muted-foreground">
               Add Comment
             </label>
-            <div className="flex items-end gap-1">
+            <div className="flex flex-col gap-1.5">
               <textarea
                 id="comment-input"
                 className="w-full border rounded-md bg-accent text-foreground text-sm px-2.5 py-1.5 transition-colors focus:border-primary placeholder:text-muted-foreground min-h-16 resize-y"
@@ -435,14 +450,41 @@ export default function IssueDetailView({ issue }: IssueDetailViewProps): ReactE
                 disabled={isAddingComment}
                 placeholder="Share context or updates..."
               />
-              <AppButton
-                onClick={() => void handleAddComment()}
-                disabled={isAddingComment || !commentDraft.trim()}
-                isLoading={isAddingComment}
-                loadingLabel="Adding..."
-              >
-                Post Comment
-              </AppButton>
+              <div className="flex items-center gap-1.5">
+                <AppButton
+                  variant="secondary"
+                  onClick={() => commentFileInputRef.current?.click()}
+                  disabled={isAddingComment}
+                  startIcon={<FiPaperclip aria-hidden="true" />}
+                >
+                  {commentFile ? commentFile.name : "Attach file"}
+                </AppButton>
+                {commentFile && (
+                  <AppButton
+                    variant="ghost"
+                    onClick={() => setCommentFile(null)}
+                    disabled={isAddingComment}
+                  >
+                    Remove
+                  </AppButton>
+                )}
+                <input
+                  ref={commentFileInputRef}
+                  id="issue-comment-file-input"
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => setCommentFile(e.target.files?.[0] ?? null)}
+                  disabled={isAddingComment}
+                />
+                <AppButton
+                  onClick={() => void handleAddComment()}
+                  disabled={isAddingComment || !commentDraft.trim()}
+                  isLoading={isAddingComment}
+                  loadingLabel="Adding..."
+                >
+                  Post Comment
+                </AppButton>
+              </div>
             </div>
           </div>
         </div>

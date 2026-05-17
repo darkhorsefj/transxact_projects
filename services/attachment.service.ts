@@ -33,6 +33,8 @@ export interface AttachmentItem {
   id: number;
   taskId: number | null;
   issueId: number | null;
+  actionId: number | null;
+  commentId: number | null;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
@@ -55,13 +57,15 @@ export async function uploadAttachment(
   file: File,
   taskId?: number,
   issueId?: number,
+  actionId?: number,
+  commentId?: number,
 ): Promise<AttachmentUploadResult> {
   const currentUser = await requireSessionUser();
   await ensureDbSchema();
   await ensureUploadDir();
 
-  if (!taskId && !issueId) {
-    throw new Error("Attachment must belong to a task or issue.");
+  if (!taskId && !issueId && !actionId && !commentId) {
+    throw new Error("Attachment must belong to a task, issue, action, or comment.");
   }
 
   if (file.size > MAX_FILE_SIZE) {
@@ -86,6 +90,8 @@ export async function uploadAttachment(
     .values({
       taskId: taskId ?? null,
       issueId: issueId ?? null,
+      actionId: actionId ?? null,
+      commentId: commentId ?? null,
       uploadedByUserId: currentUser.id,
       fileName: file.name,
       mimeType: file.type,
@@ -106,6 +112,8 @@ export async function getAttachmentById(id: number): Promise<{
   storagePath: string;
   taskId: number | null;
   issueId: number | null;
+  actionId: number | null;
+  commentId: number | null;
   uploadedByUserId: number;
   createdAt: string;
 } | null> {
@@ -161,6 +169,8 @@ export async function listAttachmentsByTask(taskId: number): Promise<AttachmentI
       id: workItemAttachment.id,
       taskId: workItemAttachment.taskId,
       issueId: workItemAttachment.issueId,
+      actionId: workItemAttachment.actionId,
+      commentId: workItemAttachment.commentId,
       fileName: workItemAttachment.fileName,
       mimeType: workItemAttachment.mimeType,
       sizeBytes: workItemAttachment.sizeBytes,
@@ -179,6 +189,8 @@ export async function listAttachmentsByIssue(issueId: number): Promise<Attachmen
       id: workItemAttachment.id,
       taskId: workItemAttachment.taskId,
       issueId: workItemAttachment.issueId,
+      actionId: workItemAttachment.actionId,
+      commentId: workItemAttachment.commentId,
       fileName: workItemAttachment.fileName,
       mimeType: workItemAttachment.mimeType,
       sizeBytes: workItemAttachment.sizeBytes,
@@ -187,5 +199,45 @@ export async function listAttachmentsByIssue(issueId: number): Promise<Attachmen
     })
     .from(workItemAttachment)
     .where(and(eq(workItemAttachment.issueId, issueId), isNull(workItemAttachment.deletedAt)))
+    .orderBy(desc(workItemAttachment.createdAt));
+}
+
+export async function listAttachmentsByAction(actionId: number): Promise<AttachmentItem[]> {
+  await ensureDbSchema();
+  return db
+    .select({
+      id: workItemAttachment.id,
+      taskId: workItemAttachment.taskId,
+      issueId: workItemAttachment.issueId,
+      actionId: workItemAttachment.actionId,
+      commentId: workItemAttachment.commentId,
+      fileName: workItemAttachment.fileName,
+      mimeType: workItemAttachment.mimeType,
+      sizeBytes: workItemAttachment.sizeBytes,
+      uploadedByUserId: workItemAttachment.uploadedByUserId,
+      createdAt: workItemAttachment.createdAt,
+    })
+    .from(workItemAttachment)
+    .where(and(eq(workItemAttachment.actionId, actionId), isNull(workItemAttachment.deletedAt)))
+    .orderBy(desc(workItemAttachment.createdAt));
+}
+
+export async function listAttachmentsByComment(commentId: number): Promise<AttachmentItem[]> {
+  await ensureDbSchema();
+  return db
+    .select({
+      id: workItemAttachment.id,
+      taskId: workItemAttachment.taskId,
+      issueId: workItemAttachment.issueId,
+      actionId: workItemAttachment.actionId,
+      commentId: workItemAttachment.commentId,
+      fileName: workItemAttachment.fileName,
+      mimeType: workItemAttachment.mimeType,
+      sizeBytes: workItemAttachment.sizeBytes,
+      uploadedByUserId: workItemAttachment.uploadedByUserId,
+      createdAt: workItemAttachment.createdAt,
+    })
+    .from(workItemAttachment)
+    .where(and(eq(workItemAttachment.commentId, commentId), isNull(workItemAttachment.deletedAt)))
     .orderBy(desc(workItemAttachment.createdAt));
 }

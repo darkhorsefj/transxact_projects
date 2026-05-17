@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, startTransition } from "react";
+import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
-import { FiEdit2, FiTrash2 } from "react-icons/fi";
+import { FiEdit2, FiPaperclip, FiTrash2 } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import Modal from "@/app/ui/modal";
@@ -39,6 +39,8 @@ export default function TaskCommentModal({
   const [editingCommentBody, setEditingCommentBody] = useState("");
   const [isEditingCommentId, setIsEditingCommentId] = useState<number | null>(null);
   const [isDeletingCommentId, setIsDeletingCommentId] = useState<number | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadComments = useCallback(async () => {
     startTransition(() => setIsLoading(true));
@@ -69,7 +71,20 @@ export default function TaskCommentModal({
     }
     setIsAddingComment(true);
     try {
-      await addTaskComment(taskId, trimmed);
+      const result = await addTaskComment(taskId, trimmed);
+
+      if (file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("commentId", String(result.id));
+        const uploadRes = await fetch("/api/uploads", { method: "POST", body: formData });
+        if (!uploadRes.ok) {
+          const data = await uploadRes.json();
+          throw new Error(data.error ?? "File upload failed. Comment was added.");
+        }
+      }
+
+      setFile(null);
       setCommentDraft("");
       toast.success("Comment added");
       void loadComments();
@@ -211,20 +226,49 @@ export default function TaskCommentModal({
       </div>
 
       <div className="flex items-end gap-1.5 border rounded-md px-2 py-1 bg-card transition-colors focus-within:border-primary">
-        <textarea
-          value={commentDraft}
-          onChange={(e) => setCommentDraft(e.target.value)}
-          disabled={isAddingComment || isLoading}
-          placeholder="Write a message..."
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              if (commentDraft.trim()) {
-                void handleAddComment();
+        <div className="flex flex-col flex-1 gap-1.5">
+          <textarea
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            disabled={isAddingComment || isLoading}
+            placeholder="Write a message..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (commentDraft.trim()) {
+                  void handleAddComment();
+                }
               }
-            }
-          }}
-        />
+            }}
+          />
+          <div className="flex items-center gap-1.5">
+            <AppButton
+              variant="secondary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isAddingComment || isLoading}
+              startIcon={<FiPaperclip aria-hidden="true" />}
+            >
+              {file ? file.name : "Attach file"}
+            </AppButton>
+            {file && (
+              <AppButton
+                variant="ghost"
+                onClick={() => setFile(null)}
+                disabled={isAddingComment || isLoading}
+              >
+                Remove
+              </AppButton>
+            )}
+            <input
+              ref={fileInputRef}
+              id="comment-file-input"
+              type="file"
+              className="hidden"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              disabled={isAddingComment || isLoading}
+            />
+          </div>
+        </div>
         <AppButton
           onClick={() => void handleAddComment()}
           disabled={isAddingComment || !commentDraft.trim() || isLoading}

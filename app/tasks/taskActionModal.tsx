@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, startTransition } from "react";
+import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
-import { FiTrash2 } from "react-icons/fi";
+import { FiPaperclip, FiTrash2 } from "react-icons/fi";
 import AppButton from "@/app/ui/appButton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import Modal from "@/app/ui/modal";
@@ -36,6 +36,8 @@ export default function TaskActionModal({
   const [isAddingAction, setIsAddingAction] = useState(false);
   const [isDeletingActionId, setIsDeletingActionId] = useState<number | null>(null);
   const [isTogglingStatusId, setIsTogglingStatusId] = useState<number | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadActions = useCallback(async () => {
     startTransition(() => setIsLoading(true));
@@ -72,7 +74,20 @@ export default function TaskActionModal({
     }
     setIsAddingAction(true);
     try {
-      await createTaskAction(taskId, projectId, trimmedName, actionDescription.trim() || undefined);
+      const result = await createTaskAction(taskId, projectId, trimmedName, actionDescription.trim() || undefined);
+
+      if (file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("actionId", String(result.id));
+        const uploadRes = await fetch("/api/uploads", { method: "POST", body: formData });
+        if (!uploadRes.ok) {
+          const data = await uploadRes.json();
+          throw new Error(data.error ?? "File upload failed. Action was created.");
+        }
+      }
+
+      setFile(null);
       setActionName("");
       setActionDescription("");
       toast.success("Action added");
@@ -143,6 +158,34 @@ export default function TaskActionModal({
         >
           Add
         </AppButton>
+      </div>
+
+      <div className="flex items-center gap-2 mb-3">
+        <AppButton
+          variant="secondary"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isAddingAction || isLoading}
+          startIcon={<FiPaperclip aria-hidden="true" />}
+        >
+          {file ? file.name : "Attach file"}
+        </AppButton>
+        {file && (
+          <AppButton
+            variant="ghost"
+            onClick={() => setFile(null)}
+            disabled={isAddingAction || isLoading}
+          >
+            Remove
+          </AppButton>
+        )}
+        <input
+          ref={fileInputRef}
+          id="action-file-input"
+          type="file"
+          className="hidden"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          disabled={isAddingAction || isLoading}
+        />
       </div>
 
       {isLoading ? (

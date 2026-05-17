@@ -839,7 +839,7 @@ export async function updateProject(projectId: number, name: string): Promise<vo
   });
 }
 
-export async function createTask(input: CreateTaskInput): Promise<void> {
+export async function createTask(input: CreateTaskInput): Promise<{ id: number }> {
   const currentUser = await requireSessionUser();
   const title = normalizeTitle(input.title, "Task title");
   const description = normalizeDescription(input.description);
@@ -894,6 +894,8 @@ export async function createTask(input: CreateTaskInput): Promise<void> {
     },
     subscribeParticipantIds: [currentUser.id, assigneeUserId],
   });
+
+  return { id: createdTaskId };
 }
 
 export async function advanceTaskStatus(taskId: number): Promise<TaskStatus> {
@@ -1089,7 +1091,7 @@ export async function updateTask(
   });
 }
 
-export async function addTaskComment(taskId: number, rawCommentBody: string): Promise<void> {
+export async function addTaskComment(taskId: number, rawCommentBody: string): Promise<{ id: number }> {
   const currentUser = await requireSessionUser();
   await ensureDbSchema();
 
@@ -1152,6 +1154,8 @@ export async function addTaskComment(taskId: number, rawCommentBody: string): Pr
       rows[0].assigneeUserId,
     ],
   });
+
+  return { id: insertedRows[0].id };
 }
 
 export async function markTaskCommentsRead(taskId: number): Promise<void> {
@@ -1184,7 +1188,7 @@ export async function markTaskCommentsRead(taskId: number): Promise<void> {
   }
 }
 
-export async function createIssue(input: CreateIssueInput): Promise<void> {
+export async function createIssue(input: CreateIssueInput): Promise<{ id: number }> {
   const currentUser = await requireSessionUser();
   const title = normalizeTitle(input.title, "Issue title");
   const description = normalizeDescription(input.description);
@@ -1259,6 +1263,8 @@ export async function createIssue(input: CreateIssueInput): Promise<void> {
       input.assigneeUserId,
     ].filter((id): id is number => typeof id === "number" && id > 0),
   });
+
+  return { id: createdIssueId };
 }
 
 export async function reverseIssueStatus(issueId: number): Promise<IssueStatus> {
@@ -1451,7 +1457,7 @@ export async function updateIssue(
 export async function addIssueComment(
   issueId: number,
   rawCommentBody: string,
-): Promise<void> {
+): Promise<{ id: number }> {
   const currentUser = await requireSessionUser();
   await ensureDbSchema();
 
@@ -1514,6 +1520,8 @@ export async function addIssueComment(
       rows[0].assigneeUserId,
     ].filter((id): id is number => typeof id === "number" && id > 0),
   });
+
+  return { id: insertedRows[0].id };
 }
 
 export async function editTaskComment(

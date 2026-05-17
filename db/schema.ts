@@ -408,6 +408,8 @@ export const workItemAttachment = sqliteTable("work_item_attachment", {
   id: int().primaryKey({ autoIncrement: true }),
   taskId: int().references(() => task.id),
   issueId: int().references(() => issue.id),
+  actionId: int().references(() => action.id),
+  commentId: int().references(() => workItemComment.id),
   uploadedByUserId: int()
     .notNull()
     .references(() => user.id),

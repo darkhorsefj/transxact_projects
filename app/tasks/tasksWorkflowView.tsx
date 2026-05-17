@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
-import { FiArrowLeft, FiCheckSquare, FiEye, FiEyeOff, FiMessageCircle, FiMessageSquare, FiPlus, FiSearch } from "react-icons/fi";
+import { FiArrowLeft, FiCheckSquare, FiEye, FiEyeOff, FiMessageCircle, FiMessageSquare, FiPaperclip, FiPlus, FiSearch } from "react-icons/fi";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import AppButton from "@/app/ui/appButton";
 import InlineStatus from "@/app/ui/inlineStatus";
@@ -74,6 +74,8 @@ export default function TasksWorkflowView({
   const [filterOverdue, setFilterOverdue] = useState(false);
   const [actionTaskId, setActionTaskId] = useState<number | null>(null);
   const [actionTaskTitle, setActionTaskTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasProject = projects.length > 0;
 
@@ -137,13 +139,26 @@ export default function TasksWorkflowView({
 
     setIsSubmitting(true);
     try {
-      await createTask({
+      const result = await createTask({
         projectId: Number(projectId),
         assigneeUserId: Number(assigneeUserId),
         title: normalizedTitle,
         description,
         dueOn,
       });
+
+      if (file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("taskId", String(result.id));
+        const uploadRes = await fetch("/api/uploads", { method: "POST", body: formData });
+        if (!uploadRes.ok) {
+          const data = await uploadRes.json();
+          throw new Error(data.error ?? "File upload failed. Task was created.");
+        }
+      }
+
+      setFile(null);
       setTitle("");
       setDescription("");
       setDueOn(defaultDueOn());
@@ -447,6 +462,7 @@ export default function TasksWorkflowView({
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
+          setFile(null);
           setStatus(null);
         }}
         title="Create task"
@@ -516,6 +532,37 @@ export default function TasksWorkflowView({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Optional implementation detail and acceptance notes."
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1 col-span-2">
+            <span className="text-sm font-semibold text-muted-foreground">Attachment</span>
+            <div className="flex items-center gap-2">
+              <AppButton
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSubmitting}
+                startIcon={<FiPaperclip aria-hidden="true" />}
+              >
+                {file ? file.name : "Attach file"}
+              </AppButton>
+              {file && (
+                <AppButton
+                  variant="ghost"
+                  onClick={() => setFile(null)}
+                  disabled={isSubmitting}
+                >
+                  Remove
+                </AppButton>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              id="task-file-input"
+              type="file"
+              className="hidden"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               disabled={isSubmitting}
             />
           </div>
