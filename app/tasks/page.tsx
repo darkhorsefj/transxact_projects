@@ -21,6 +21,8 @@ export default async function TasksPage(): Promise<ReactElement> {
     <TasksWorkflowView
       currentUserId={data.currentUserId}
       projects={data.projects}
+      cases={data.cases}
+      items={data.items}
       assignees={data.assignees}
       tasks={data.tasks}
     />

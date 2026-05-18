@@ -23,10 +23,6 @@ const compatibilityColumns: Record<string, ColumnDefinition[]> = {
     { name: "createdByUserId", sqlType: "integer" },
     { name: "deletedAt", sqlType: "text" },
   ],
-  phase: [
-    { name: "createdByUserId", sqlType: "integer" },
-    { name: "deletedAt", sqlType: "text" },
-  ],
   task: [
     { name: "assigneeUserId", sqlType: "integer" },
     { name: "dueAt", sqlType: "text" },

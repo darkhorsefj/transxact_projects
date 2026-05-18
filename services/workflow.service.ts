@@ -3,10 +3,15 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import db, { ensureDbSchema } from "@/db/connection";
 import {
+  caseItem,
+  type CaseItemImpact,
+  type CaseItemPriority,
+  type CaseItemSeverity,
+  type CaseItemStatus,
   issue,
   type IssueStatus,
-  phase,
   project,
+  supportCase,
   task,
   taskCommentReadState,
   type TaskStatus,
@@ -30,9 +35,8 @@ import {
 import { dispatchEntityNotification, notifyEntityWatchers } from "./entity-notify.service";
 import { publishRealtimeRefresh, publishRealtimeRefreshAll } from "./realtime.service";
 import { requireSessionUser } from "./session.service";
-import { displayName } from "@/lib/utils";
+import { displayName, nowIso } from "@/lib/utils";
 
-const BACKLOG_PHASE_NAME = "Backlog";
 const MIN_TITLE_LENGTH = 3;
 const MAX_COMMENT_LENGTH = 2000;
 
@@ -67,6 +71,21 @@ export interface ProjectOption {
   name: string;
 }
 
+export interface CaseOption {
+  id: number;
+  title: string;
+  projectId: number;
+  projectName: string;
+}
+
+export interface ItemOption {
+  id: number;
+  description: string;
+  caseId: number;
+  caseTitle: string;
+  projectName: string;
+}
+
 export interface AssigneeOption {
   id: number;
   label: string;
@@ -94,7 +113,8 @@ export interface TaskWorkflowItem {
   status: TaskStatus;
   dueAt: string;
   projectName: string;
-  phaseName: string;
+  caseName: string;
+  itemName: string;
   assigneeName: string | null;
   isFollowing: boolean;
   comments: WorkItemCommentThreadItem[];
@@ -127,6 +147,8 @@ export interface WorkItemCommentThreadItem {
 export interface TaskWorkflowData {
   currentUserId: number;
   projects: ProjectOption[];
+  cases: CaseOption[];
+  items: ItemOption[];
   assignees: AssigneeOption[];
   tasks: TaskWorkflowItem[];
 }
@@ -140,7 +162,7 @@ export interface IssueWorkflowData {
 }
 
 interface CreateTaskInput {
-  projectId: number;
+  itemId: number;
   assigneeUserId?: number;
   title: string;
   description?: string;
@@ -236,6 +258,30 @@ async function requireActiveIssue(issueId: number): Promise<void> {
   }
 }
 
+async function requireActiveCase(caseId: number): Promise<void> {
+  const rows = await db
+    .select({ id: supportCase.id })
+    .from(supportCase)
+    .where(and(eq(supportCase.id, caseId), isNull(supportCase.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Selected case does not exist.");
+  }
+}
+
+async function requireActiveItem(itemId: number): Promise<void> {
+  const rows = await db
+    .select({ id: caseItem.id })
+    .from(caseItem)
+    .where(and(eq(caseItem.id, itemId), isNull(caseItem.deletedAt)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("Selected item does not exist.");
+  }
+}
+
 async function requireActiveAssignee(userId: number): Promise<void> {
   const rows = await db
     .select({ id: user.id, status: user.status })
@@ -257,41 +303,7 @@ async function resolveAssigneeId(
   return resolvedAssigneeId;
 }
 
-async function resolvePhaseIdForProject(
-  projectId: number,
-  createdByUserId: number,
-): Promise<number> {
-  const existingPhaseRows = await db
-    .select({ id: phase.id })
-    .from(phase)
-    .where(and(eq(phase.projectId, projectId), isNull(phase.deletedAt)))
-    .orderBy(asc(phase.id))
-    .limit(1);
 
-  if (existingPhaseRows.length > 0) {
-    return existingPhaseRows[0].id;
-  }
-
-  const nowIso = new Date().toISOString();
-  const createdPhaseRows = await db
-    .insert(phase)
-    .values({
-      projectId,
-      name: BACKLOG_PHASE_NAME,
-      description: "Default workflow phase",
-      status: "not_started",
-      createdByUserId,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    })
-    .returning({ id: phase.id });
-
-  if (createdPhaseRows.length === 0) {
-    throw new Error("Unable to create a default phase for this project.");
-  }
-
-  return createdPhaseRows[0].id;
-}
 
 async function listProjectOptions(): Promise<ProjectOption[]> {
   const rows = await db
@@ -306,7 +318,57 @@ async function listProjectOptions(): Promise<ProjectOption[]> {
   return rows;
 }
 
-async function listAssigneeOptions(): Promise<AssigneeOption[]> {
+
+
+export async function listAllCaseOptions(): Promise<CaseOption[]> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const rows = await db
+    .select({
+      id: supportCase.id,
+      title: supportCase.title,
+      projectId: supportCase.projectId,
+      projectName: project.name,
+    })
+    .from(supportCase)
+    .innerJoin(project, eq(supportCase.projectId, project.id))
+    .where(
+      and(isNull(supportCase.deletedAt), isNull(project.deletedAt)),
+    )
+    .orderBy(asc(project.name), asc(supportCase.title));
+
+  return rows;
+}
+
+export async function listAllItemOptions(): Promise<ItemOption[]> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const rows = await db
+    .select({
+      id: caseItem.id,
+      description: caseItem.description,
+      caseId: caseItem.caseId,
+      caseTitle: supportCase.title,
+      projectName: project.name,
+    })
+    .from(caseItem)
+    .innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+    .innerJoin(project, eq(supportCase.projectId, project.id))
+    .where(
+      and(
+        isNull(caseItem.deletedAt),
+        isNull(supportCase.deletedAt),
+        isNull(project.deletedAt),
+      ),
+    )
+    .orderBy(asc(project.name), asc(supportCase.title), asc(caseItem.createdAt));
+
+  return rows;
+}
+
+export async function listAssigneeOptions(): Promise<AssigneeOption[]> {
   const rows = await db
     .select({
       id: user.id,
@@ -453,13 +515,14 @@ export async function listProjectWorkflowData(): Promise<{
 
   const taskCountRows = await db
     .select({
-      projectId: phase.projectId,
+      projectId: supportCase.projectId,
       total: count(task.id),
     })
     .from(task)
-    .innerJoin(phase, eq(task.phaseId, phase.id))
-    .where(and(isNull(task.deletedAt), isNull(phase.deletedAt)))
-    .groupBy(phase.projectId);
+    .innerJoin(caseItem, eq(task.itemId, caseItem.id))
+    .innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+    .where(and(isNull(task.deletedAt), isNull(caseItem.deletedAt), isNull(supportCase.deletedAt)))
+    .groupBy(supportCase.projectId);
 
   const openIssueRows = await db
     .select({
@@ -568,10 +631,12 @@ export async function listTaskWorkflowData(): Promise<TaskWorkflowData> {
   const currentUser = await requireSessionUser();
   await ensureDbSchema();
 
-  const [projects, assignees, tasks] = await Promise.all([
+  const [projects, cases, items, assignees, tasks] = await Promise.all([
     listProjectOptions(),
+    listAllCaseOptions(),
+    listAllItemOptions(),
     listAssigneeOptions(),
-    db
+      db
       .select({
         id: task.id,
         title: task.title,
@@ -579,17 +644,19 @@ export async function listTaskWorkflowData(): Promise<TaskWorkflowData> {
         status: task.status,
         dueAt: task.dueAt,
         projectName: project.name,
-        phaseName: phase.name,
+        caseName: supportCase.title,
+        itemName: caseItem.description,
         assigneeName: user.name,
       })
       .from(task)
-      .innerJoin(phase, eq(task.phaseId, phase.id))
-      .innerJoin(project, eq(phase.projectId, project.id))
+      .innerJoin(caseItem, eq(task.itemId, caseItem.id)).innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+      .innerJoin(project, eq(supportCase.projectId, project.id))
       .leftJoin(user, eq(task.assigneeUserId, user.id))
       .where(
         and(
           isNull(task.deletedAt),
-          isNull(phase.deletedAt),
+          isNull(caseItem.deletedAt),
+          isNull(supportCase.deletedAt),
           isNull(project.deletedAt),
         ),
       )
@@ -613,6 +680,8 @@ export async function listTaskWorkflowData(): Promise<TaskWorkflowData> {
   return {
     currentUserId: currentUser.id,
     projects,
+    cases,
+    items,
     assignees,
     tasks: tasks.map((item) => {
       const taskComments = commentsByTaskId.get(item.id) ?? [];
@@ -639,11 +708,11 @@ export async function listIssueWorkflowData(): Promise<IssueWorkflowData> {
       .select({
         id: task.id,
         title: task.title,
-        projectId: phase.projectId,
+        projectId: supportCase.projectId,
       })
       .from(task)
-      .innerJoin(phase, eq(task.phaseId, phase.id))
-      .where(and(isNull(task.deletedAt), isNull(phase.deletedAt)))
+      .innerJoin(caseItem, eq(task.itemId, caseItem.id)).innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+      .where(and(isNull(task.deletedAt), isNull(caseItem.deletedAt), isNull(supportCase.deletedAt)))
       .orderBy(desc(task.createdAt)),
     listAssigneeOptions(),
     db
@@ -846,17 +915,16 @@ export async function createTask(input: CreateTaskInput): Promise<{ id: number }
   const dueAt = parseDueDate(input.dueOn);
   const nowIso = new Date().toISOString();
 
-  await requireActiveProject(input.projectId);
+  await requireActiveItem(input.itemId);
   const assigneeUserId = await resolveAssigneeId(
     input.assigneeUserId,
     currentUser.id,
   );
-  const phaseId = await resolvePhaseIdForProject(input.projectId, currentUser.id);
 
   const insertedRows = await db
     .insert(task)
     .values({
-      phaseId,
+      itemId: input.itemId,
       assigneeUserId,
       title,
       description,
@@ -1200,13 +1268,14 @@ export async function createIssue(input: CreateIssueInput): Promise<{ id: number
     const matchingTaskRows = await db
       .select({ id: task.id })
       .from(task)
-      .innerJoin(phase, eq(task.phaseId, phase.id))
+      .innerJoin(caseItem, eq(task.itemId, caseItem.id)).innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
       .where(
         and(
           eq(task.id, input.taskId),
-          eq(phase.projectId, input.projectId),
+          eq(supportCase.projectId, input.projectId),
           isNull(task.deletedAt),
-          isNull(phase.deletedAt),
+          isNull(caseItem.deletedAt),
+          isNull(supportCase.deletedAt),
         ),
       )
       .limit(1);
@@ -1706,6 +1775,13 @@ export async function setProjectFollow(
   publishRealtimeRefresh([currentUser.id]);
 }
 
+export async function setCaseFollow(caseId: number, follow: boolean): Promise<void> {
+  const currentUser = await requireSessionUser();
+  await requireActiveCase(caseId);
+  await toggleEntitySubscription("case", caseId, follow);
+  publishRealtimeRefresh([currentUser.id]);
+}
+
 export async function setTaskFollow(taskId: number, follow: boolean): Promise<void> {
   const currentUser = await requireSessionUser();
   await requireActiveTask(taskId);
@@ -1728,8 +1804,10 @@ export interface TaskDetailItem {
   dueAt: string;
   projectId: number;
   projectName: string;
-  phaseId: number;
-  phaseName: string;
+  caseId: number;
+  caseName: string;
+  itemId: number;
+  itemName: string;
   assigneeId: number | null;
   assigneeName: string | null;
   createdByUserId: number | null;
@@ -1758,16 +1836,18 @@ export async function getTaskDetailById(taskId: number): Promise<TaskDetailItem>
       dueAt: task.dueAt,
       projectId: project.id,
       projectName: project.name,
-      phaseId: task.phaseId,
-      phaseName: phase.name,
+      caseId: caseItem.caseId,
+      caseName: supportCase.title,
+      itemId: task.itemId,
+      itemName: caseItem.description,
       assigneeId: task.assigneeUserId,
       assigneeName: user.name,
       createdByUserId: task.createdByUserId,
       createdAt: task.createdAt,
     })
     .from(task)
-    .innerJoin(phase, eq(task.phaseId, phase.id))
-    .innerJoin(project, eq(phase.projectId, project.id))
+    .innerJoin(caseItem, eq(task.itemId, caseItem.id)).innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+    .innerJoin(project, eq(supportCase.projectId, project.id))
     .leftJoin(user, eq(task.assigneeUserId, user.id))
     .where(and(eq(task.id, taskId), isNull(task.deletedAt)))
     .limit(1);
@@ -1803,8 +1883,10 @@ export async function getTaskDetailById(taskId: number): Promise<TaskDetailItem>
     dueAt: row.dueAt,
     projectId: row.projectId,
     projectName: row.projectName,
-    phaseId: row.phaseId,
-    phaseName: row.phaseName,
+    caseId: row.caseId,
+    caseName: row.caseName,
+    itemId: row.itemId,
+    itemName: row.itemName,
     assigneeId: row.assigneeId,
     assigneeName: row.assigneeName,
     createdByUserId: row.createdByUserId,
@@ -1911,4 +1993,631 @@ export async function getTaskComments(taskId: number): Promise<WorkItemCommentTh
   await ensureDbSchema();
   const comments = await listTaskCommentsByTaskId([taskId], currentUser.id);
   return comments.get(taskId) ?? [];
+}
+
+export interface CaseListItem {
+  id: number;
+  title: string;
+  description: string | null;
+  customerName: string | null;
+  status: "open" | "in_progress" | "closed";
+  projectId: number;
+  projectName: string;
+  taskCount: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CaseDetail {
+  id: number;
+  title: string;
+  description: string | null;
+  customerName: string | null;
+  status: "open" | "in_progress" | "closed";
+  projectId: number;
+  projectName: string;
+  createdBy: string;
+  createdByUserId: number;
+  createdAt: string;
+  updatedAt: string | null;
+  items: ItemDetail[];
+}
+
+export interface ItemDetail {
+  id: number;
+  caseId: number;
+  dateReported: string;
+  description: string;
+  impact: string;
+  severity: string;
+  priority: string;
+  classification: string;
+  status: string;
+  relatedItemIds: string | null;
+  createdBy: string;
+  createdByUserId: number;
+  createdAt: string;
+  updatedAt: string | null;
+  tasks: TaskWorkflowItem[];
+}
+
+export async function listCases(): Promise<CaseListItem[]> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const rows = await db
+    .select({
+      id: supportCase.id,
+      title: supportCase.title,
+      description: supportCase.description,
+      customerName: supportCase.customerName,
+      status: supportCase.status,
+      projectId: supportCase.projectId,
+      projectName: project.name,
+      createdBy: user.name,
+      createdByEmail: user.email,
+      createdAt: supportCase.createdAt,
+      updatedAt: supportCase.updatedAt,
+    })
+    .from(supportCase)
+    .innerJoin(project, eq(supportCase.projectId, project.id))
+    .leftJoin(user, eq(supportCase.createdByUserId, user.id))
+    .where(and(isNull(supportCase.deletedAt), isNull(project.deletedAt)))
+    .orderBy(desc(supportCase.createdAt));
+
+  const caseIds = rows.map((r) => r.id);
+  const taskCounts = caseIds.length > 0
+    ? await db
+        .select({ caseId: caseItem.caseId, count: count(task.id) })
+        .from(task)
+        .innerJoin(caseItem, eq(task.itemId, caseItem.id))
+        .where(and(inArray(caseItem.caseId, caseIds), isNull(task.deletedAt), isNull(caseItem.deletedAt)))
+        .groupBy(caseItem.caseId)
+    : [];
+
+  const countMap = new Map(taskCounts.map((c) => [c.caseId, c.count]));
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    customerName: r.customerName,
+    status: r.status as CaseListItem["status"],
+    projectId: r.projectId,
+    projectName: r.projectName,
+    taskCount: countMap.get(r.id) ?? 0,
+    createdBy: displayName(r.createdBy, r.createdByEmail ?? "unknown"),
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
+}
+
+export async function getCaseDetail(caseId: number): Promise<CaseDetail> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  const caseRows = await db
+    .select({
+      id: supportCase.id,
+      title: supportCase.title,
+      description: supportCase.description,
+      customerName: supportCase.customerName,
+      status: supportCase.status,
+      projectId: supportCase.projectId,
+      projectName: project.name,
+      createdByUserId: supportCase.createdByUserId,
+      createdBy: user.name,
+      createdByEmail: user.email,
+      createdAt: supportCase.createdAt,
+      updatedAt: supportCase.updatedAt,
+    })
+    .from(supportCase)
+    .innerJoin(project, eq(supportCase.projectId, project.id))
+    .leftJoin(user, eq(supportCase.createdByUserId, user.id))
+    .where(and(eq(supportCase.id, caseId), isNull(supportCase.deletedAt)))
+    .limit(1);
+
+  if (caseRows.length === 0) {
+    throw new Error("Case not found.");
+  }
+
+  const c = caseRows[0];
+
+  const itemRows = await db
+    .select({
+      id: caseItem.id,
+      caseId: caseItem.caseId,
+      dateReported: caseItem.dateReported,
+      description: caseItem.description,
+      impact: caseItem.impact,
+      severity: caseItem.severity,
+      priority: caseItem.priority,
+      classification: caseItem.classification,
+      status: caseItem.status,
+      relatedItemIds: caseItem.relatedItemIds,
+      createdByUserId: caseItem.createdByUserId,
+      createdBy: user.name,
+      createdByEmail: user.email,
+      createdAt: caseItem.createdAt,
+      updatedAt: caseItem.updatedAt,
+    })
+    .from(caseItem)
+    .leftJoin(user, eq(caseItem.createdByUserId, user.id))
+    .where(and(eq(caseItem.caseId, caseId), isNull(caseItem.deletedAt)))
+    .orderBy(asc(caseItem.createdAt));
+
+  const itemIds = itemRows.map((i) => i.id);
+  const taskRows = itemIds.length > 0
+    ? await db
+        .select({
+          id: task.id,
+          itemId: task.itemId,
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          dueAt: task.dueAt,
+          projectName: project.name,
+          caseName: supportCase.title,
+          itemName: caseItem.description,
+          assigneeName: user.name,
+        })
+        .from(task)
+        .innerJoin(caseItem, eq(task.itemId, caseItem.id))
+        .innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+        .innerJoin(project, eq(supportCase.projectId, project.id))
+        .leftJoin(user, eq(task.assigneeUserId, user.id))
+        .where(
+          and(
+            inArray(task.itemId, itemIds),
+            isNull(task.deletedAt),
+          ),
+        )
+        .orderBy(desc(task.createdAt))
+    : [];
+
+  const commentsByTaskId = await listTaskCommentsByTaskId(
+    taskRows.map((t) => t.id),
+    currentUser.id,
+  );
+
+  const followMap = await listUserEntitySubscriptionState(
+    "task",
+    taskRows.map((t) => t.id),
+  );
+
+  const readAtByTaskId = await listTaskCommentReadAtByTaskId(
+    taskRows.map((t) => t.id),
+    currentUser.id,
+  );
+
+  const tasksByItem = new Map<number, TaskWorkflowItem[]>();
+  for (const t of taskRows) {
+    const taskComments = commentsByTaskId.get(t.id) ?? [];
+    const taskItem: TaskWorkflowItem = {
+      ...t,
+      isFollowing: followMap.get(t.id) ?? false,
+      comments: taskComments,
+      unreadCommentCount: computeUnreadCommentCount(
+        taskComments,
+        readAtByTaskId.get(t.id) ?? null,
+      ),
+    };
+    const list = tasksByItem.get(t.itemId) ?? [];
+    list.push(taskItem);
+    tasksByItem.set(t.itemId, list);
+  }
+
+  const items: ItemDetail[] = itemRows.map((i) => ({
+    id: i.id,
+    caseId: i.caseId,
+    dateReported: i.dateReported,
+    description: i.description,
+    impact: i.impact,
+    severity: i.severity,
+    priority: i.priority,
+    classification: i.classification,
+    status: i.status,
+    relatedItemIds: i.relatedItemIds,
+    createdBy: displayName(i.createdBy, i.createdByEmail ?? "unknown"),
+    createdByUserId: i.createdByUserId,
+    createdAt: i.createdAt,
+    updatedAt: i.updatedAt,
+    tasks: tasksByItem.get(i.id) ?? [],
+  }));
+
+  return {
+    id: c.id,
+    title: c.title,
+    description: c.description,
+    customerName: c.customerName,
+    status: c.status as CaseDetail["status"],
+    projectId: c.projectId,
+    projectName: c.projectName,
+    createdBy: displayName(c.createdBy, c.createdByEmail ?? "unknown"),
+    createdByUserId: c.createdByUserId,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    items,
+  };
+}
+
+export async function createCase(input: {
+  projectId: number;
+  title: string;
+  description?: string;
+  customerName?: string;
+}): Promise<{ id: number }> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  const title = input.title.trim();
+  if (title.length < MIN_TITLE_LENGTH) {
+    throw new Error(`Case title must be at least ${MIN_TITLE_LENGTH} characters.`);
+  }
+
+  await requireActiveProject(input.projectId);
+
+  const timestamp = nowIso();
+  const rows = await db
+    .insert(supportCase)
+    .values({
+      projectId: input.projectId,
+      title,
+      description: input.description?.trim() || null,
+      customerName: input.customerName?.trim() || null,
+      status: "open",
+      createdByUserId: currentUser.id,
+      createdAt: timestamp,
+      updatedAt: null,
+      deletedAt: null,
+    })
+    .returning({ id: supportCase.id });
+
+  if (rows.length === 0) {
+    throw new Error("Unable to create case.");
+  }
+
+  await ensureEntitySubscriptions("case", rows[0].id, [currentUser.id]);
+  publishRealtimeRefreshAll();
+
+  return rows[0];
+}
+
+export async function updateCase(
+  caseId: number,
+  fields: {
+    title?: string;
+    description?: string;
+    customerName?: string;
+    status?: "open" | "in_progress" | "closed";
+  },
+): Promise<void> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const existing = await db
+    .select({ id: supportCase.id })
+    .from(supportCase)
+    .where(and(eq(supportCase.id, caseId), isNull(supportCase.deletedAt)))
+    .limit(1);
+
+  if (existing.length === 0) {
+    throw new Error("Case not found.");
+  }
+
+  const updates: Record<string, unknown> = { updatedAt: nowIso() };
+
+  if (fields.title !== undefined) {
+    const trimmed = fields.title.trim();
+    if (trimmed.length < MIN_TITLE_LENGTH) {
+      throw new Error(`Case title must be at least ${MIN_TITLE_LENGTH} characters.`);
+    }
+    updates.title = trimmed;
+  }
+  if (fields.description !== undefined) {
+    updates.description = fields.description?.trim() || null;
+  }
+  if (fields.customerName !== undefined) {
+    updates.customerName = fields.customerName?.trim() || null;
+  }
+  if (fields.status !== undefined) {
+    updates.status = fields.status;
+  }
+
+  await db.update(supportCase).set(updates).where(eq(supportCase.id, caseId));
+  publishRealtimeRefreshAll();
+}
+
+export async function deleteCase(caseId: number): Promise<void> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const existing = await db
+    .select({ id: supportCase.id })
+    .from(supportCase)
+    .where(and(eq(supportCase.id, caseId), isNull(supportCase.deletedAt)))
+    .limit(1);
+
+  if (existing.length === 0) {
+    throw new Error("Case not found.");
+  }
+
+  const timestamp = nowIso();
+
+  await db.update(supportCase).set({ deletedAt: timestamp, updatedAt: timestamp }).where(eq(supportCase.id, caseId));
+
+  const items = await db
+    .select({ id: caseItem.id })
+    .from(caseItem)
+    .where(and(eq(caseItem.caseId, caseId), isNull(caseItem.deletedAt)));
+
+  for (const item of items) {
+    await db.update(caseItem).set({ deletedAt: timestamp, updatedAt: timestamp }).where(eq(caseItem.id, item.id));
+    await db.update(task).set({ deletedAt: timestamp, updatedAt: timestamp }).where(eq(task.itemId, item.id));
+  }
+
+  publishRealtimeRefreshAll();
+}
+
+const PRIORITY_MATRIX: Record<string, Record<string, string>> = {
+  many: { major: "P1", minor: "P1", degraded: "P2", none: "P3" },
+  some: { major: "P1", minor: "P2", degraded: "P3", none: "P4" },
+  one:  { major: "P2", minor: "P3", degraded: "P4", none: "P4" },
+};
+
+function computeItemPriority(impact: string, severity: string): string {
+  return PRIORITY_MATRIX[impact]?.[severity] ?? "P4";
+}
+
+export async function createItem(input: {
+  caseId: number;
+  dateReported: string;
+  description: string;
+  impact: string;
+  severity: string;
+  classification: string;
+  relatedItemIds?: number[];
+}): Promise<{ id: number }> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  const existingCase = await db
+    .select({ id: supportCase.id })
+    .from(supportCase)
+    .where(and(eq(supportCase.id, input.caseId), isNull(supportCase.deletedAt)))
+    .limit(1);
+
+  if (existingCase.length === 0) {
+    throw new Error("Case not found.");
+  }
+
+  const description = input.description.trim();
+  if (description.length < 3) {
+    throw new Error("Description must be at least 3 characters.");
+  }
+
+  const priority = computeItemPriority(input.impact, input.severity);
+  const timestamp = nowIso();
+
+  const rows = await db
+    .insert(caseItem)
+    .values({
+      caseId: input.caseId,
+      dateReported: input.dateReported,
+      description,
+      impact: input.impact as CaseItemImpact,
+      severity: input.severity as CaseItemSeverity,
+      priority: priority as CaseItemPriority,
+      classification: input.classification.trim() || "bug",
+      status: "rework" as CaseItemStatus,
+      relatedItemIds: input.relatedItemIds?.length ? JSON.stringify(input.relatedItemIds) : null,
+      createdByUserId: currentUser.id,
+      createdAt: timestamp,
+      updatedAt: null,
+      deletedAt: null,
+    })
+    .returning({ id: caseItem.id });
+
+  if (rows.length === 0) {
+    throw new Error("Unable to create item.");
+  }
+
+  return rows[0];
+}
+
+export async function updateItem(
+  itemId: number,
+  fields: {
+    dateReported?: string;
+    description?: string;
+    impact?: string;
+    severity?: string;
+    classification?: string;
+    status?: string;
+    relatedItemIds?: number[];
+  },
+): Promise<void> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const existing = await db
+    .select({ id: caseItem.id, impact: caseItem.impact, severity: caseItem.severity })
+    .from(caseItem)
+    .where(and(eq(caseItem.id, itemId), isNull(caseItem.deletedAt)))
+    .limit(1);
+
+  if (existing.length === 0) {
+    throw new Error("Item not found.");
+  }
+
+  const updates: Record<string, unknown> = { updatedAt: nowIso() };
+
+  if (fields.dateReported !== undefined) {
+    updates.dateReported = fields.dateReported;
+  }
+  if (fields.description !== undefined) {
+    const trimmed = fields.description.trim();
+    if (trimmed.length < 3) {
+      throw new Error("Description must be at least 3 characters.");
+    }
+    updates.description = trimmed;
+  }
+  if (fields.impact !== undefined) {
+    updates.impact = fields.impact;
+  }
+  if (fields.severity !== undefined) {
+    updates.severity = fields.severity;
+  }
+  if (fields.impact !== undefined || fields.severity !== undefined) {
+    const impact = fields.impact ?? existing[0].impact;
+    const severity = fields.severity ?? existing[0].severity;
+    updates.priority = computeItemPriority(impact, severity);
+  }
+  if (fields.classification !== undefined) {
+    updates.classification = fields.classification.trim() || "bug";
+  }
+  if (fields.status !== undefined) {
+    updates.status = fields.status;
+  }
+  if (fields.relatedItemIds !== undefined) {
+    updates.relatedItemIds = fields.relatedItemIds.length ? JSON.stringify(fields.relatedItemIds) : null;
+  }
+
+  await db.update(caseItem).set(updates).where(eq(caseItem.id, itemId));
+  publishRealtimeRefreshAll();
+}
+
+export async function deleteItem(itemId: number): Promise<void> {
+  await requireSessionUser();
+  await ensureDbSchema();
+
+  const existing = await db
+    .select({ id: caseItem.id })
+    .from(caseItem)
+    .where(and(eq(caseItem.id, itemId), isNull(caseItem.deletedAt)))
+    .limit(1);
+
+  if (existing.length === 0) {
+    throw new Error("Item not found.");
+  }
+
+  const timestamp = nowIso();
+
+  await db.update(caseItem).set({ deletedAt: timestamp, updatedAt: timestamp }).where(eq(caseItem.id, itemId));
+  await db.update(task).set({ deletedAt: timestamp, updatedAt: timestamp }).where(eq(task.itemId, itemId));
+
+  publishRealtimeRefreshAll();
+}
+
+export async function getItemDetail(itemId: number): Promise<ItemDetail & { caseTitle: string; projectName: string }> {
+  const currentUser = await requireSessionUser();
+  await ensureDbSchema();
+
+  const itemRows = await db
+    .select({
+      id: caseItem.id,
+      caseId: caseItem.caseId,
+      caseTitle: supportCase.title,
+      projectName: project.name,
+      dateReported: caseItem.dateReported,
+      description: caseItem.description,
+      impact: caseItem.impact,
+      severity: caseItem.severity,
+      priority: caseItem.priority,
+      classification: caseItem.classification,
+      status: caseItem.status,
+      relatedItemIds: caseItem.relatedItemIds,
+      createdByUserId: caseItem.createdByUserId,
+      createdBy: user.name,
+      createdByEmail: user.email,
+      createdAt: caseItem.createdAt,
+      updatedAt: caseItem.updatedAt,
+    })
+    .from(caseItem)
+    .innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+    .innerJoin(project, eq(supportCase.projectId, project.id))
+    .leftJoin(user, eq(caseItem.createdByUserId, user.id))
+    .where(and(eq(caseItem.id, itemId), isNull(caseItem.deletedAt)))
+    .limit(1);
+
+  if (itemRows.length === 0) {
+    throw new Error("Item not found.");
+  }
+
+  const i = itemRows[0];
+
+  const taskRows = await db
+    .select({
+      id: task.id,
+      itemId: task.itemId,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      dueAt: task.dueAt,
+      projectName: project.name,
+      caseName: supportCase.title,
+      itemName: caseItem.description,
+      assigneeName: user.name,
+    })
+    .from(task)
+    .innerJoin(caseItem, eq(task.itemId, caseItem.id))
+    .innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+    .innerJoin(project, eq(supportCase.projectId, project.id))
+    .leftJoin(user, eq(task.assigneeUserId, user.id))
+    .where(
+      and(
+        eq(task.itemId, itemId),
+        isNull(task.deletedAt),
+      ),
+    )
+    .orderBy(desc(task.createdAt));
+
+  const commentsByTaskId = await listTaskCommentsByTaskId(
+    taskRows.map((t) => t.id),
+    currentUser.id,
+  );
+
+  const followMap = await listUserEntitySubscriptionState(
+    "task",
+    taskRows.map((t) => t.id),
+  );
+
+  const readAtByTaskId = await listTaskCommentReadAtByTaskId(
+    taskRows.map((t) => t.id),
+    currentUser.id,
+  );
+
+  const tasks: TaskWorkflowItem[] = taskRows.map((t) => {
+    const taskComments = commentsByTaskId.get(t.id) ?? [];
+    return {
+      ...t,
+      isFollowing: followMap.get(t.id) ?? false,
+      comments: taskComments,
+      unreadCommentCount: computeUnreadCommentCount(
+        taskComments,
+        readAtByTaskId.get(t.id) ?? null,
+      ),
+    };
+  });
+
+  return {
+    id: i.id,
+    caseId: i.caseId,
+    caseTitle: i.caseTitle,
+    projectName: i.projectName,
+    dateReported: i.dateReported,
+    description: i.description,
+    impact: i.impact,
+    severity: i.severity,
+    priority: i.priority,
+    classification: i.classification,
+    status: i.status,
+    relatedItemIds: i.relatedItemIds,
+    createdBy: displayName(i.createdBy, i.createdByEmail ?? "unknown"),
+    createdByUserId: i.createdByUserId,
+    createdAt: i.createdAt,
+    updatedAt: i.updatedAt,
+    tasks,
+  };
 }

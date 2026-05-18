@@ -3,13 +3,14 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import db, { ensureDbSchema } from "@/db/connection";
 import {
+  caseItem,
   directConversationMember,
   directMessage,
   entitySubscription,
   notification,
   notificationPreference,
-  phase,
   project,
+  supportCase,
   task,
   type NotificationCategory,
   type NotificationSourceType,
@@ -518,8 +519,9 @@ export async function notifyOverdueTasks(): Promise<number> {
       projectName: project.name,
     })
     .from(task)
-    .innerJoin(phase, eq(task.phaseId, phase.id))
-    .innerJoin(project, eq(phase.projectId, project.id))
+    .innerJoin(caseItem, eq(task.itemId, caseItem.id))
+    .innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
+    .innerJoin(project, eq(supportCase.projectId, project.id))
     .where(
       and(
         sql`${task.dueAt} <= ${nowIso}`,

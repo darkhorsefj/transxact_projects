@@ -2,7 +2,7 @@
 
 import { and, asc, eq, isNull } from "drizzle-orm";
 import db, { ensureDbSchema } from "@/db/connection";
-import { action, phase, task, user } from "@/db/schema";
+import { action, caseItem, supportCase, task, user } from "@/db/schema";
 import { dispatchEntityNotification, notifyEntityWatchers } from "./entity-notify.service";
 import { requireSessionUser } from "./session.service";
 
@@ -177,9 +177,10 @@ export async function getTaskActionData(taskId: number): Promise<{ actions: Acti
   await ensureDbSchema();
 
   const taskRows = await db
-    .select({ projectId: phase.projectId })
+    .select({ projectId: supportCase.projectId })
     .from(task)
-    .innerJoin(phase, eq(task.phaseId, phase.id))
+    .innerJoin(caseItem, eq(task.itemId, caseItem.id))
+    .innerJoin(supportCase, eq(caseItem.caseId, supportCase.id))
     .where(eq(task.id, taskId))
     .limit(1);
 

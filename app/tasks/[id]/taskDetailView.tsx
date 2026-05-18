@@ -281,7 +281,7 @@ export default function TaskDetailView({ task, hideBackLink = false }: TaskDetai
             ) : (
               <>
                 <h1>{task.title}</h1>
-                <p className="mt-1 text-muted-foreground text-xs">{task.projectName}</p>
+                <p className="mt-1 text-muted-foreground text-xs">{task.projectName} / {task.caseName} / {task.itemName}</p>
               </>
             )}
           </div>

@@ -12,11 +12,13 @@ import type { ReactElement, ReactNode } from "react";
 import {
   FiAlertTriangle,
   FiBell,
+  FiBriefcase,
   FiChevronLeft,
   FiChevronRight,
   FiClipboard,
   FiFolder,
   FiHome,
+  FiList,
   FiMessageSquare,
   FiShield,
   FiUser,
@@ -46,6 +48,8 @@ interface BreadcrumbItem {
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: FiHome },
   { href: "/projects", label: "Projects", icon: FiFolder },
+  { href: "/cases", label: "Cases", icon: FiBriefcase },
+  { href: "/items", label: "Items", icon: FiList },
   { href: "/tasks", label: "Tasks", icon: FiClipboard },
   { href: "/issues", label: "Issues", icon: FiAlertTriangle },
   { href: "/messages", label: "Messages", icon: FiMessageSquare },
@@ -62,6 +66,10 @@ function resolvePageMeta(pathname: string): PageMeta {
     return { title: "Task workflow", icon: FiClipboard };
   if (pathname.startsWith("/issues"))
     return { title: "Issue workflow", icon: FiAlertTriangle };
+  if (pathname.startsWith("/cases"))
+    return { title: "Cases", icon: FiBriefcase };
+  if (pathname.startsWith("/items"))
+    return { title: "Items", icon: FiList };
   if (pathname.startsWith("/messages"))
     return { title: "Direct messages", icon: FiMessageSquare };
   if (pathname.startsWith("/notifications"))
@@ -102,6 +110,23 @@ function resolveBreadcrumbs(pathname: string): BreadcrumbItem[] {
     if (segments.length >= 2 && segments[0] === "issues") {
       crumbs.push({ label: `Issue #${segments[1]}` });
     }
+    return crumbs;
+  }
+
+  if (pathname.startsWith("/cases")) {
+    crumbs.push({ label: "Cases", href: "/cases" });
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length >= 2 && segments[0] === "cases") {
+      crumbs.push({ label: `Case #${segments[1]}` });
+    }
+    if (segments.length >= 4 && segments[2] === "items") {
+      crumbs.push({ label: `Item #${segments[3]}` });
+    }
+    return crumbs;
+  }
+
+  if (pathname.startsWith("/items")) {
+    crumbs.push({ label: "Items", href: "/items" });
     return crumbs;
   }
 

@@ -22,6 +22,8 @@ import {
   reverseTaskStatus,
   setTaskFollow,
   type AssigneeOption,
+  type CaseOption,
+  type ItemOption,
   type ProjectOption,
   type TaskWorkflowItem,
 } from "@/services/workflow.service";
@@ -29,6 +31,8 @@ import {
 interface TasksWorkflowViewProps {
   currentUserId: number;
   projects: ProjectOption[];
+  cases: CaseOption[];
+  items: ItemOption[];
   assignees: AssigneeOption[];
   tasks: TaskWorkflowItem[];
 }
@@ -49,13 +53,14 @@ function isOverdue(isoDate: string): boolean {
 
 export default function TasksWorkflowView({
   assignees,
+  items,
   currentUserId,
   projects,
   tasks,
 }: TasksWorkflowViewProps): ReactElement {
   useSseRefresh();
   const router = useRouter();
-  const [projectId, setProjectId] = useState<string>(projects[0] ? String(projects[0].id) : "");
+  const [itemId, setItemId] = useState<string>("");
   const [assigneeUserId, setAssigneeUserId] = useState<string>(String(currentUserId));
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -88,7 +93,8 @@ export default function TasksWorkflowView({
         t.title.toLowerCase().includes(q) ||
         (t.description?.toLowerCase().includes(q) ?? false) ||
         t.projectName.toLowerCase().includes(q) ||
-        t.phaseName.toLowerCase().includes(q) ||
+        t.caseName.toLowerCase().includes(q) ||
+        t.itemName.toLowerCase().includes(q) ||
         (t.assigneeName?.toLowerCase().includes(q) ?? false)
       );
     }
@@ -124,8 +130,8 @@ export default function TasksWorkflowView({
 
   const handleCreateTask = async (): Promise<void> => {
     const normalizedTitle = title.trim();
-    if (!projectId) {
-      setStatus({ tone: "error", message: "Select a project before creating a task." });
+    if (!itemId) {
+      setStatus({ tone: "error", message: "Select an item before creating a task." });
       return;
     }
     if (normalizedTitle.length < 3) {
@@ -140,7 +146,7 @@ export default function TasksWorkflowView({
     setIsSubmitting(true);
     try {
       const result = await createTask({
-        projectId: Number(projectId),
+        itemId: Number(itemId),
         assigneeUserId: Number(assigneeUserId),
         title: normalizedTitle,
         description,
@@ -237,7 +243,8 @@ export default function TasksWorkflowView({
         ) : null}
         <div className="flex flex-wrap gap-x-1 gap-y-0.5 mt-0.5">
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">{item.projectName}</span>
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">{item.phaseName}</span>
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">{item.caseName}</span>
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">{item.itemName}</span>
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">{item.assigneeName ?? "Unassigned"}</span>
           <span className={`inline-flex items-center gap-1 text-xs ${isOverdue(item.dueAt) ? "text-destructive" : "text-muted-foreground"}`}>Due {formatDueDate(item.dueAt)}</span>
         </div>
@@ -469,16 +476,17 @@ export default function TasksWorkflowView({
       >
         <div className="grid grid-cols-2 gap-2 mb-2">
           <div className="flex flex-col gap-1">
-            <label htmlFor="task-project" className="text-sm font-semibold text-muted-foreground">Project</label>
+            <label htmlFor="task-item" className="text-sm font-semibold text-muted-foreground">Item</label>
             <select
-              id="task-project"
+              id="task-item"
               className="w-full border rounded-md bg-accent text-foreground text-sm px-2.5 py-1.5 transition-colors focus:border-primary placeholder:text-muted-foreground"
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
+              value={itemId}
+              onChange={(event) => setItemId(event.target.value)}
               disabled={isSubmitting}
             >
-              {projects.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
+              <option value="">Select an item...</option>
+              {items.map((item) => (
+                <option key={item.id} value={item.id}>{item.projectName} / {item.caseTitle} / {item.description}</option>
               ))}
             </select>
           </div>
@@ -569,9 +577,9 @@ export default function TasksWorkflowView({
         </div>
 
         <div className="flex items-center gap-2">
-          <AppButton
+            <AppButton
             onClick={handleCreateTask}
-            disabled={!hasProject}
+            disabled={!itemId}
             isLoading={isSubmitting}
             loadingLabel="Creating..."
             startIcon={<FiPlus aria-hidden="true" />}

@@ -103,7 +103,7 @@ export default function TaskDetailModal({
             <div>
               <h2 className="m-0 text-lg font-semibold">{task.title}</h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {task.projectName} · {task.phaseName}
+                {task.projectName} · {task.caseName} · {task.itemName}
               </p>
             </div>
           </div>

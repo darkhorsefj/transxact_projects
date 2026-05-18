@@ -37,6 +37,7 @@ export type NotificationCategory =
 export type NotificationSourceType =
   | "conversation"
   | "project"
+  | "case"
   | "task"
   | "issue"
   | "action"
@@ -44,7 +45,7 @@ export type NotificationSourceType =
 export type NotificationChannel = "in_app" | "email";
 export type NotificationDeliveryStatus = "delivered" | "failed" | "read";
 export type NotificationEmailQueueStatus = "pending" | "sent" | "failed";
-export type SubscribableEntityType = "project" | "task" | "issue";
+export type SubscribableEntityType = "project" | "case" | "task" | "issue";
 
 export const project = sqliteTable("project", {
   id: int().primaryKey({ autoIncrement: true }),
@@ -55,16 +56,44 @@ export const project = sqliteTable("project", {
   deletedAt: text(),
 });
 
-export type PhaseStatus = "not_started" | "in_progress" | "completed";
-export const phase = sqliteTable("phase", {
+export type CaseStatus = "open" | "in_progress" | "closed";
+export const supportCase = sqliteTable("case", {
   id: int().primaryKey({ autoIncrement: true }),
   projectId: int()
     .notNull()
     .references(() => project.id),
-  name: text().notNull(),
+  title: text().notNull(),
   description: text(),
-  status: text().notNull().$type<PhaseStatus>().default("not_started"),
-  createdByUserId: int().references(() => user.id),
+  customerName: text(),
+  status: text().notNull().$type<CaseStatus>().default("open"),
+  createdByUserId: int()
+    .notNull()
+    .references(() => user.id),
+  createdAt: text().notNull(),
+  updatedAt: text(),
+  deletedAt: text(),
+});
+
+export type CaseItemImpact = "many" | "some" | "one";
+export type CaseItemSeverity = "major" | "minor" | "degraded" | "none";
+export type CaseItemPriority = "P1" | "P2" | "P3" | "P4";
+export type CaseItemStatus = "rework" | "feedback" | "closed";
+export const caseItem = sqliteTable("case_item", {
+  id: int().primaryKey({ autoIncrement: true }),
+  caseId: int()
+    .notNull()
+    .references(() => supportCase.id),
+  dateReported: text().notNull(),
+  description: text().notNull(),
+  impact: text().notNull().$type<CaseItemImpact>().default("one"),
+  severity: text().notNull().$type<CaseItemSeverity>().default("minor"),
+  priority: text().notNull().$type<CaseItemPriority>().default("P4"),
+  classification: text().notNull().default("bug"),
+  status: text().notNull().$type<CaseItemStatus>().default("rework"),
+  relatedItemIds: text(),
+  createdByUserId: int()
+    .notNull()
+    .references(() => user.id),
   createdAt: text().notNull(),
   updatedAt: text(),
   deletedAt: text(),
@@ -73,9 +102,9 @@ export const phase = sqliteTable("phase", {
 export type TaskStatus = "not_started" | "in_progress" | "completed";
 export const task = sqliteTable("task", {
   id: int().primaryKey({ autoIncrement: true }),
-  phaseId: int()
+  itemId: int()
     .notNull()
-    .references(() => phase.id),
+    .references(() => caseItem.id),
   assigneeUserId: int()
     .notNull()
     .references(() => user.id),
